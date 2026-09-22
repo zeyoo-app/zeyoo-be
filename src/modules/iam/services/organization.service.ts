@@ -38,12 +38,16 @@ export class OrganizationService {
     return organization;
   }
 
-  async assertMember(organizationId: string, userId: string): Promise<void> {
+  async isMember(organizationId: string, userId: string): Promise<boolean> {
     const membership = await this.prisma.membership.findUnique({
       where: { userId_organizationId: { userId, organizationId } },
       select: { id: true },
     });
-    if (!membership) {
+    return membership !== null;
+  }
+
+  async assertMember(organizationId: string, userId: string): Promise<void> {
+    if (!(await this.isMember(organizationId, userId))) {
       throw new ForbiddenException('You are not a member of this organization.');
     }
   }

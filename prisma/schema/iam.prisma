@@ -95,6 +95,7 @@ model Organization {
   teams       Team[]
   memberships Membership[]
   apiKeys     ApiKey[]
+  campaigns   Campaign[]
 
   @@map("iam_organizations")
 }

@@ -1,0 +1,101 @@
+// Campaigns & Discovery module.
+// Owns campaigns, their private-creator invitations, and campaign categories.
+
+// Shared across modules (e.g. social ingestion); defined here as the campaign's
+// target platform.
+enum SocialPlatform {
+  TIKTOK
+  INSTAGRAM
+  YOUTUBE
+  X
+}
+
+enum CampaignStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum CampaignVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+// The two contract-agreed creator-earnings methods (§1.5).
+enum RewardType {
+  FIXED_PER_ITEM
+  PER_VIEW
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  REVOKED
+}
+
+model Category {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String     @unique
+  createdAt DateTime   @default(now())
+  campaigns Campaign[]
+
+  @@map("campaign_categories")
+}
+
+model Campaign {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  // Acting brand user who created the campaign (audit stamp; cross-module).
+  createdByUserId String            @db.Uuid
+  categoryId     String?            @db.Uuid
+
+  title       String
+  description String
+  goals       String?
+  audience    String?
+  guidelines  String?
+
+  platform   SocialPlatform
+  visibility CampaignVisibility @default(PRIVATE)
+  status     CampaignStatus     @default(DRAFT)
+
+  startDate DateTime
+  endDate   DateTime
+
+  currencyCode String // ISO 4217, uppercase
+  budgetAmount Int // minor units
+  rewardType   RewardType
+  rewardAmount Int // minor units (per approved item, or per view)
+
+  publishedAt DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  invitations  CampaignInvitation[]
+
+  @@index([organizationId])
+  @@index([status, visibility])
+  @@map("campaigns")
+}
+
+model CampaignInvitation {
+  id         String           @id @default(uuid()) @db.Uuid
+  campaignId String           @db.Uuid
+  // Invited creator and the acting owner who sent it (cross-module user refs).
+  creatorUserId   String      @db.Uuid
+  invitedByUserId String      @db.Uuid
+  status     InvitationStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  respondedAt DateTime?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, creatorUserId])
+  @@index([creatorUserId])
+  @@map("campaign_invitations")
+}

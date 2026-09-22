@@ -66,11 +66,7 @@ export class MembershipService {
     return this.prisma.membership.update({ where: { id: membership.id }, data: { role } });
   }
 
-  async remove(
-    organizationId: string,
-    requesterId: string,
-    membershipId: string,
-  ): Promise<void> {
+  async remove(organizationId: string, requesterId: string, membershipId: string): Promise<void> {
     await this.assertOwner(organizationId, requesterId);
     const membership = await this.getMembershipInOrg(organizationId, membershipId);
     if (membership.role === 'OWNER') {

@@ -8,12 +8,10 @@ const BRAND_PERMISSIONS: Permission[] = [
   Permission.OrgManage,
   Permission.OrgMembersManage,
   Permission.ApiKeyManage,
+  Permission.CampaignManage,
 ];
 
-const ADMIN_PERMISSIONS: Permission[] = [
-  ...BRAND_PERMISSIONS,
-  Permission.AdminAccess,
-];
+const ADMIN_PERMISSIONS: Permission[] = [...BRAND_PERMISSIONS, Permission.AdminAccess];
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [UserType.BRAND_USER]: BRAND_PERMISSIONS,

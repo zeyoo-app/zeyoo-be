@@ -60,9 +60,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return message ?? exception.message;
   }
 
-  private resolvePrisma(
-    exception: Prisma.PrismaClientKnownRequestError,
-  ): { status: number; message: string } {
+  private resolvePrisma(exception: Prisma.PrismaClientKnownRequestError): {
+    status: number;
+    message: string;
+  } {
     switch (exception.code) {
       case 'P2002':
         return { status: HttpStatus.CONFLICT, message: 'Resource already exists.' };
