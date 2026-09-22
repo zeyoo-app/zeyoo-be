@@ -60,6 +60,22 @@ export class InvitationService {
     });
   }
 
+  async hasPendingInvitation(campaignId: string, creatorUserId: string): Promise<boolean> {
+    const invitation = await this.prisma.campaignInvitation.findUnique({
+      where: { campaignId_creatorUserId: { campaignId, creatorUserId } },
+      select: { status: true },
+    });
+    return invitation?.status === 'PENDING';
+  }
+
+  // Called when a creator accepts an invitation by applying; idempotent.
+  async markAccepted(campaignId: string, creatorUserId: string): Promise<void> {
+    await this.prisma.campaignInvitation.updateMany({
+      where: { campaignId, creatorUserId, status: 'PENDING' },
+      data: { status: 'ACCEPTED', respondedAt: new Date() },
+    });
+  }
+
   private async loadManageable(campaignId: string, requesterId: string): Promise<Campaign> {
     const campaign = await this.prisma.campaign.findUnique({ where: { id: campaignId } });
     if (!campaign) {

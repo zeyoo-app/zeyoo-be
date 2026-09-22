@@ -2,6 +2,12 @@
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
+CREATE TYPE "ApplicationStatus" AS ENUM ('PENDING', 'APPROVED', 'DECLINED', 'WITHDRAWN');
+
+-- CreateEnum
+CREATE TYPE "ApplicationSource" AS ENUM ('DIRECT', 'INVITATION');
+
+-- CreateEnum
 CREATE TYPE "SocialPlatform" AS ENUM ('TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'X');
 
 -- CreateEnum
@@ -33,6 +39,23 @@ CREATE TYPE "OrgRole" AS ENUM ('OWNER', 'MEMBER');
 
 -- CreateEnum
 CREATE TYPE "OAuthProvider" AS ENUM ('GOOGLE', 'APPLE');
+
+-- CreateTable
+CREATE TABLE "applications" (
+    "id" UUID NOT NULL,
+    "campaignId" UUID NOT NULL,
+    "creatorUserId" UUID NOT NULL,
+    "status" "ApplicationStatus" NOT NULL DEFAULT 'PENDING',
+    "source" "ApplicationSource" NOT NULL,
+    "acceptedTerms" BOOLEAN NOT NULL,
+    "message" TEXT,
+    "decidedByUserId" UUID,
+    "decidedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "applications_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "campaign_categories" (
@@ -213,6 +236,12 @@ CREATE TABLE "iam_api_keys" (
 );
 
 -- CreateIndex
+CREATE INDEX "applications_creatorUserId_idx" ON "applications"("creatorUserId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "applications_campaignId_creatorUserId_key" ON "applications"("campaignId", "creatorUserId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "campaign_categories_slug_key" ON "campaign_categories"("slug");
 
 -- CreateIndex
@@ -274,6 +303,9 @@ CREATE UNIQUE INDEX "iam_api_keys_keyHash_key" ON "iam_api_keys"("keyHash");
 
 -- CreateIndex
 CREATE INDEX "iam_api_keys_organizationId_idx" ON "iam_api_keys"("organizationId");
+
+-- AddForeignKey
+ALTER TABLE "applications" ADD CONSTRAINT "applications_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "campaigns" ADD CONSTRAINT "campaigns_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "iam_organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;

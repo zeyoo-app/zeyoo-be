@@ -11,7 +11,10 @@ const BRAND_PERMISSIONS: Permission[] = [
   Permission.CampaignManage,
 ];
 
-const CREATOR_PERMISSIONS: Permission[] = [Permission.CreatorProfileManage];
+const CREATOR_PERMISSIONS: Permission[] = [
+  Permission.CreatorProfileManage,
+  Permission.CampaignApply,
+];
 
 const ADMIN_PERMISSIONS: Permission[] = [...BRAND_PERMISSIONS, Permission.AdminAccess];
 

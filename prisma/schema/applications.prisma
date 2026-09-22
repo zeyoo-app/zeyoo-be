@@ -1,0 +1,41 @@
+// Applications module.
+// Owns a creator's application to a campaign and its brand-side review outcome.
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  WITHDRAWN
+}
+
+// Whether the creator applied to a public campaign directly, or by accepting a
+// private invitation.
+enum ApplicationSource {
+  DIRECT
+  INVITATION
+}
+
+model Application {
+  id         String @id @default(uuid()) @db.Uuid
+  campaignId String @db.Uuid
+  // The applying creator (cross-module reference, validated in the service).
+  creatorUserId String @db.Uuid
+
+  status        ApplicationStatus @default(PENDING)
+  source        ApplicationSource
+  acceptedTerms Boolean
+  message       String?
+
+  // Brand user who reviewed the application (audit stamp).
+  decidedByUserId String?   @db.Uuid
+  decidedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, creatorUserId])
+  @@index([creatorUserId])
+  @@map("applications")
+}

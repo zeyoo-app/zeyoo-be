@@ -83,6 +83,12 @@ export class CampaignService {
     });
   }
 
+  // For trusted inter-module callers (e.g. applications). Performs no access
+  // control — the caller is responsible for authorizing the request.
+  requireCampaign(campaignId: string): Promise<Campaign> {
+    return this.loadOrThrow(campaignId);
+  }
+
   private async loadManageable(campaignId: string, requesterId: string): Promise<Campaign> {
     const campaign = await this.loadOrThrow(campaignId);
     await this.organizations.assertMember(campaign.organizationId, requesterId);
