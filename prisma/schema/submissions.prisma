@@ -1,0 +1,73 @@
+// Submissions module.
+// Owns a creator's content submission for a campaign, its revisions, and the
+// brand's review decisions.
+
+enum SubmissionStatus {
+  PENDING
+  NEEDS_CHANGES
+  APPROVED
+  REJECTED
+}
+
+enum SubmissionContentType {
+  LINK
+  UPLOAD
+}
+
+enum ReviewDecision {
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+}
+
+model Submission {
+  id         String @id @default(uuid()) @db.Uuid
+  campaignId String @db.Uuid
+  // The submitting creator (cross-module reference, validated in the service).
+  creatorUserId String @db.Uuid
+
+  status SubmissionStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaign  Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  revisions SubmissionRevision[]
+  reviews   Review[]
+
+  @@unique([campaignId, creatorUserId])
+  @@index([creatorUserId])
+  @@map("submissions")
+}
+
+model SubmissionRevision {
+  id           String                @id @default(uuid()) @db.Uuid
+  submissionId String                @db.Uuid
+  contentType  SubmissionContentType
+  contentUrl   String
+  note         String?
+  createdAt    DateTime              @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviews    Review[]
+
+  @@index([submissionId])
+  @@map("submission_revisions")
+}
+
+model Review {
+  id           String         @id @default(uuid()) @db.Uuid
+  submissionId String         @db.Uuid
+  revisionId   String         @db.Uuid
+  // Brand user who reviewed (audit stamp).
+  reviewerUserId String       @db.Uuid
+  decision     ReviewDecision
+  note         String?
+  createdAt    DateTime       @default(now())
+
+  submission Submission         @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  revision   SubmissionRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@map("submission_reviews")
+}

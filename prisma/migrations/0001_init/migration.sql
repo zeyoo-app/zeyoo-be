@@ -40,6 +40,15 @@ CREATE TYPE "OrgRole" AS ENUM ('OWNER', 'MEMBER');
 -- CreateEnum
 CREATE TYPE "OAuthProvider" AS ENUM ('GOOGLE', 'APPLE');
 
+-- CreateEnum
+CREATE TYPE "SubmissionStatus" AS ENUM ('PENDING', 'NEEDS_CHANGES', 'APPROVED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "SubmissionContentType" AS ENUM ('LINK', 'UPLOAD');
+
+-- CreateEnum
+CREATE TYPE "ReviewDecision" AS ENUM ('APPROVED', 'CHANGES_REQUESTED', 'REJECTED');
+
 -- CreateTable
 CREATE TABLE "applications" (
     "id" UUID NOT NULL,
@@ -235,6 +244,43 @@ CREATE TABLE "iam_api_keys" (
     CONSTRAINT "iam_api_keys_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "submissions" (
+    "id" UUID NOT NULL,
+    "campaignId" UUID NOT NULL,
+    "creatorUserId" UUID NOT NULL,
+    "status" "SubmissionStatus" NOT NULL DEFAULT 'PENDING',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "submissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "submission_revisions" (
+    "id" UUID NOT NULL,
+    "submissionId" UUID NOT NULL,
+    "contentType" "SubmissionContentType" NOT NULL,
+    "contentUrl" TEXT NOT NULL,
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "submission_revisions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "submission_reviews" (
+    "id" UUID NOT NULL,
+    "submissionId" UUID NOT NULL,
+    "revisionId" UUID NOT NULL,
+    "reviewerUserId" UUID NOT NULL,
+    "decision" "ReviewDecision" NOT NULL,
+    "note" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "submission_reviews_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "applications_creatorUserId_idx" ON "applications"("creatorUserId");
 
@@ -304,6 +350,18 @@ CREATE UNIQUE INDEX "iam_api_keys_keyHash_key" ON "iam_api_keys"("keyHash");
 -- CreateIndex
 CREATE INDEX "iam_api_keys_organizationId_idx" ON "iam_api_keys"("organizationId");
 
+-- CreateIndex
+CREATE INDEX "submissions_creatorUserId_idx" ON "submissions"("creatorUserId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "submissions_campaignId_creatorUserId_key" ON "submissions"("campaignId", "creatorUserId");
+
+-- CreateIndex
+CREATE INDEX "submission_revisions_submissionId_idx" ON "submission_revisions"("submissionId");
+
+-- CreateIndex
+CREATE INDEX "submission_reviews_submissionId_idx" ON "submission_reviews"("submissionId");
+
 -- AddForeignKey
 ALTER TABLE "applications" ADD CONSTRAINT "applications_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -342,4 +400,16 @@ ALTER TABLE "iam_memberships" ADD CONSTRAINT "iam_memberships_teamId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "iam_api_keys" ADD CONSTRAINT "iam_api_keys_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "iam_organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "submissions" ADD CONSTRAINT "submissions_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "submission_revisions" ADD CONSTRAINT "submission_revisions_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "submissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "submission_reviews" ADD CONSTRAINT "submission_reviews_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "submissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "submission_reviews" ADD CONSTRAINT "submission_reviews_revisionId_fkey" FOREIGN KEY ("revisionId") REFERENCES "submission_revisions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

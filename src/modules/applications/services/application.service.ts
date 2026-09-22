@@ -53,6 +53,14 @@ export class ApplicationService {
     });
   }
 
+  async hasApprovedApplication(campaignId: string, creatorUserId: string): Promise<boolean> {
+    const application = await this.prisma.application.findUnique({
+      where: { campaignId_creatorUserId: { campaignId, creatorUserId } },
+      select: { status: true },
+    });
+    return application?.status === 'APPROVED';
+  }
+
   async withdraw(applicationId: string, creatorUserId: string): Promise<Application> {
     const application = await this.loadOrThrow(applicationId);
     if (application.creatorUserId !== creatorUserId) {

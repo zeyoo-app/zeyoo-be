@@ -9,6 +9,7 @@ export const Permission = {
   ApiKeyManage: 'apikey:manage',
   CampaignManage: 'campaign:manage',
   CampaignApply: 'campaign:apply',
+  ContentSubmit: 'content:submit',
   CreatorProfileManage: 'creator:profile:manage',
   AdminAccess: 'admin:access',
 } as const;

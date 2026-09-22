@@ -78,6 +78,7 @@ model Campaign {
   category     Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   invitations  CampaignInvitation[]
   applications Application[]
+  submissions  Submission[]
 
   @@index([organizationId])
   @@index([status, visibility])
