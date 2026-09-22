@@ -41,6 +41,21 @@ CREATE TYPE "OrgRole" AS ENUM ('OWNER', 'MEMBER');
 CREATE TYPE "OAuthProvider" AS ENUM ('GOOGLE', 'APPLE');
 
 -- CreateEnum
+CREATE TYPE "LedgerAccountOwnerType" AS ENUM ('ORGANIZATION', 'CREATOR', 'PLATFORM');
+
+-- CreateEnum
+CREATE TYPE "LedgerEntryDirection" AS ENUM ('DEBIT', 'CREDIT');
+
+-- CreateEnum
+CREATE TYPE "LedgerTransactionType" AS ENUM ('CAMPAIGN_FUNDING', 'EARNING_ACCRUAL', 'WITHDRAWAL');
+
+-- CreateEnum
+CREATE TYPE "FundingStatus" AS ENUM ('PENDING', 'SUCCEEDED', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "WithdrawalStatus" AS ENUM ('REQUESTED', 'HELD', 'PAID', 'REJECTED');
+
+-- CreateEnum
 CREATE TYPE "SubmissionStatus" AS ENUM ('PENDING', 'NEEDS_CHANGES', 'APPROVED', 'REJECTED');
 
 -- CreateEnum
@@ -245,6 +260,74 @@ CREATE TABLE "iam_api_keys" (
 );
 
 -- CreateTable
+CREATE TABLE "ledger_accounts" (
+    "id" UUID NOT NULL,
+    "ownerType" "LedgerAccountOwnerType" NOT NULL,
+    "ownerId" UUID,
+    "systemKey" TEXT,
+    "currencyCode" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ledger_accounts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ledger_transactions" (
+    "id" UUID NOT NULL,
+    "type" "LedgerTransactionType" NOT NULL,
+    "reference" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ledger_transactions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ledger_entries" (
+    "id" UUID NOT NULL,
+    "transactionId" UUID NOT NULL,
+    "accountId" UUID NOT NULL,
+    "direction" "LedgerEntryDirection" NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "currencyCode" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ledger_entries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "campaign_fundings" (
+    "id" UUID NOT NULL,
+    "campaignId" UUID NOT NULL,
+    "organizationId" UUID NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "currencyCode" TEXT NOT NULL,
+    "status" "FundingStatus" NOT NULL DEFAULT 'PENDING',
+    "stripePaymentIntentId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "campaign_fundings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "withdrawals" (
+    "id" UUID NOT NULL,
+    "creatorUserId" UUID NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "currencyCode" TEXT NOT NULL,
+    "status" "WithdrawalStatus" NOT NULL DEFAULT 'REQUESTED',
+    "holdReason" TEXT,
+    "destinationAccountId" TEXT,
+    "stripePayoutId" TEXT,
+    "decidedByUserId" UUID,
+    "decidedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "withdrawals_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "submissions" (
     "id" UUID NOT NULL,
     "campaignId" UUID NOT NULL,
@@ -351,6 +434,27 @@ CREATE UNIQUE INDEX "iam_api_keys_keyHash_key" ON "iam_api_keys"("keyHash");
 CREATE INDEX "iam_api_keys_organizationId_idx" ON "iam_api_keys"("organizationId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "ledger_accounts_systemKey_key" ON "ledger_accounts"("systemKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ledger_accounts_ownerType_ownerId_currencyCode_key" ON "ledger_accounts"("ownerType", "ownerId", "currencyCode");
+
+-- CreateIndex
+CREATE INDEX "ledger_entries_accountId_idx" ON "ledger_entries"("accountId");
+
+-- CreateIndex
+CREATE INDEX "ledger_entries_transactionId_idx" ON "ledger_entries"("transactionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "campaign_fundings_stripePaymentIntentId_key" ON "campaign_fundings"("stripePaymentIntentId");
+
+-- CreateIndex
+CREATE INDEX "campaign_fundings_campaignId_idx" ON "campaign_fundings"("campaignId");
+
+-- CreateIndex
+CREATE INDEX "withdrawals_creatorUserId_idx" ON "withdrawals"("creatorUserId");
+
+-- CreateIndex
 CREATE INDEX "submissions_creatorUserId_idx" ON "submissions"("creatorUserId");
 
 -- CreateIndex
@@ -400,6 +504,12 @@ ALTER TABLE "iam_memberships" ADD CONSTRAINT "iam_memberships_teamId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "iam_api_keys" ADD CONSTRAINT "iam_api_keys_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "iam_organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "ledger_transactions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ledger_entries" ADD CONSTRAINT "ledger_entries_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "ledger_accounts"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;

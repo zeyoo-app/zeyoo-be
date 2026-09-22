@@ -7,6 +7,7 @@ import { ApplicationsModule } from '@modules/applications/applications.public';
 import { CampaignsModule } from '@modules/campaigns/campaigns.public';
 import { CreatorsModule } from '@modules/creators/creators.public';
 import { IamModule } from '@modules/iam/iam.public';
+import { PaymentsModule } from '@modules/payments/payments.public';
 import { SubmissionsModule } from '@modules/submissions/submissions.public';
 
 @Module({
@@ -20,6 +21,7 @@ import { SubmissionsModule } from '@modules/submissions/submissions.public';
     CreatorsModule,
     ApplicationsModule,
     SubmissionsModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

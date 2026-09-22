@@ -10,6 +10,7 @@ export const Permission = {
   CampaignManage: 'campaign:manage',
   CampaignApply: 'campaign:apply',
   ContentSubmit: 'content:submit',
+  WithdrawalRequest: 'withdrawal:request',
   CreatorProfileManage: 'creator:profile:manage',
   AdminAccess: 'admin:access',
 } as const;

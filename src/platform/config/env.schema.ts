@@ -13,6 +13,9 @@ export const envSchema = z.object({
   JWT_ACCESS_TTL: secondsFromString.default(900),
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_REFRESH_TTL: secondsFromString.default(1_209_600),
+
+  STRIPE_SECRET_KEY: z.string().min(1),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

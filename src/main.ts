@@ -13,7 +13,8 @@ const API_PREFIX = 'v1';
 async function bootstrap(): Promise<void> {
   patchNestJsSwagger();
 
-  const app = await NestFactory.create(AppModule);
+  // rawBody is required so the Stripe webhook can verify the request signature.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.setGlobalPrefix(API_PREFIX);
   app.useGlobalPipes(new ZodValidationPipe());
   app.useGlobalFilters(new AllExceptionsFilter());

@@ -1,0 +1,110 @@
+// Payments module.
+// Owns the append-only double-entry ledger (a reconciliation record, not a bank
+// account or escrow), campaign funding, and creator withdrawals.
+
+enum LedgerAccountOwnerType {
+  ORGANIZATION
+  CREATOR
+  PLATFORM
+}
+
+enum LedgerEntryDirection {
+  DEBIT
+  CREDIT
+}
+
+enum LedgerTransactionType {
+  CAMPAIGN_FUNDING
+  EARNING_ACCRUAL
+  WITHDRAWAL
+}
+
+enum FundingStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum WithdrawalStatus {
+  REQUESTED
+  HELD
+  PAID
+  REJECTED
+}
+
+model LedgerAccount {
+  id           String                 @id @default(uuid()) @db.Uuid
+  ownerType    LedgerAccountOwnerType
+  // Null for platform system accounts, which are keyed by systemKey instead.
+  ownerId      String?                @db.Uuid
+  systemKey    String?                @unique
+  currencyCode String
+  createdAt    DateTime               @default(now())
+
+  entries LedgerEntry[]
+
+  @@unique([ownerType, ownerId, currencyCode])
+  @@map("ledger_accounts")
+}
+
+model LedgerTransaction {
+  id        String                @id @default(uuid()) @db.Uuid
+  type      LedgerTransactionType
+  reference String?
+  createdAt DateTime              @default(now())
+
+  entries LedgerEntry[]
+
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id            String               @id @default(uuid()) @db.Uuid
+  transactionId String               @db.Uuid
+  accountId     String               @db.Uuid
+  direction     LedgerEntryDirection
+  amount        Int // minor units, always positive
+  currencyCode  String
+  createdAt     DateTime             @default(now())
+
+  transaction LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  account     LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId])
+  @@index([transactionId])
+  @@map("ledger_entries")
+}
+
+model CampaignFunding {
+  id             String        @id @default(uuid()) @db.Uuid
+  campaignId     String        @db.Uuid
+  organizationId String        @db.Uuid
+  amount         Int // minor units
+  currencyCode   String
+  status         FundingStatus @default(PENDING)
+  stripePaymentIntentId String  @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([campaignId])
+  @@map("campaign_fundings")
+}
+
+model Withdrawal {
+  id           String           @id @default(uuid()) @db.Uuid
+  creatorUserId String          @db.Uuid
+  amount       Int // minor units
+  currencyCode String
+  status       WithdrawalStatus @default(REQUESTED)
+  holdReason   String?
+  // Stripe Connect destination; populated once creator payout onboarding exists.
+  destinationAccountId String?
+  stripePayoutId       String?
+  decidedByUserId String?   @db.Uuid
+  decidedAt       DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([creatorUserId])
+  @@map("withdrawals")
+}

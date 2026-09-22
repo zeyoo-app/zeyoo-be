@@ -3,6 +3,8 @@ process.env.DATABASE_URL = 'postgresql://user:pass@localhost:5432/zeyoo_test';
 process.env.REDIS_URL = 'redis://localhost:6379';
 process.env.JWT_ACCESS_SECRET = 'test-access-secret-value';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-value';
+process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
+process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
 
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
