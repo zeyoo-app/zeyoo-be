@@ -17,6 +17,12 @@ CREATE TYPE "RewardType" AS ENUM ('FIXED_PER_ITEM', 'PER_VIEW');
 CREATE TYPE "InvitationStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'REVOKED');
 
 -- CreateEnum
+CREATE TYPE "VerificationStatus" AS ENUM ('UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "SocialAccountStatus" AS ENUM ('CONNECTED', 'DISCONNECTED');
+
+-- CreateEnum
 CREATE TYPE "UserType" AS ENUM ('BRAND_USER', 'CREATOR', 'ADMIN');
 
 -- CreateEnum
@@ -77,6 +83,36 @@ CREATE TABLE "campaign_invitations" (
     "respondedAt" TIMESTAMP(3),
 
     CONSTRAINT "campaign_invitations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "creator_profiles" (
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "displayName" TEXT NOT NULL,
+    "headline" TEXT,
+    "bio" TEXT,
+    "country" TEXT,
+    "verificationStatus" "VerificationStatus" NOT NULL DEFAULT 'UNVERIFIED',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "creator_profiles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "creator_social_accounts" (
+    "id" UUID NOT NULL,
+    "creatorProfileId" UUID NOT NULL,
+    "platform" "SocialPlatform" NOT NULL,
+    "handle" TEXT NOT NULL,
+    "platformAccountId" TEXT,
+    "status" "SocialAccountStatus" NOT NULL DEFAULT 'CONNECTED',
+    "connectedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "creator_social_accounts_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -192,6 +228,15 @@ CREATE INDEX "campaign_invitations_creatorUserId_idx" ON "campaign_invitations"(
 CREATE UNIQUE INDEX "campaign_invitations_campaignId_creatorUserId_key" ON "campaign_invitations"("campaignId", "creatorUserId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "creator_profiles_userId_key" ON "creator_profiles"("userId");
+
+-- CreateIndex
+CREATE INDEX "creator_social_accounts_creatorProfileId_idx" ON "creator_social_accounts"("creatorProfileId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "creator_social_accounts_creatorProfileId_platform_key" ON "creator_social_accounts"("creatorProfileId", "platform");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "iam_users_email_key" ON "iam_users"("email");
 
 -- CreateIndex
@@ -238,6 +283,9 @@ ALTER TABLE "campaigns" ADD CONSTRAINT "campaigns_categoryId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "campaign_invitations" ADD CONSTRAINT "campaign_invitations_campaignId_fkey" FOREIGN KEY ("campaignId") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "creator_social_accounts" ADD CONSTRAINT "creator_social_accounts_creatorProfileId_fkey" FOREIGN KEY ("creatorProfileId") REFERENCES "creator_profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "iam_credentials" ADD CONSTRAINT "iam_credentials_userId_fkey" FOREIGN KEY ("userId") REFERENCES "iam_users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

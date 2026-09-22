@@ -1,0 +1,53 @@
+// Creators module.
+// Owns creator profiles and their connected social-account records. OAuth tokens
+// and metric snapshots for those accounts belong to the social module.
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum SocialAccountStatus {
+  CONNECTED
+  DISCONNECTED
+}
+
+model CreatorProfile {
+  id     String @id @default(uuid()) @db.Uuid
+  // The owning CREATOR user (cross-module reference, validated in the service).
+  userId String @unique @db.Uuid
+
+  displayName String
+  headline    String?
+  bio         String?
+  country     String? // ISO 3166-1 alpha-2, uppercase
+
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  socialAccounts SocialAccount[]
+
+  @@map("creator_profiles")
+}
+
+model SocialAccount {
+  id               String              @id @default(uuid()) @db.Uuid
+  creatorProfileId String              @db.Uuid
+  platform         SocialPlatform
+  handle           String
+  platformAccountId String?
+  status           SocialAccountStatus @default(CONNECTED)
+  connectedAt      DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  profile CreatorProfile @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorProfileId, platform])
+  @@index([creatorProfileId])
+  @@map("creator_social_accounts")
+}

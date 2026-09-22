@@ -3,8 +3,11 @@ import { Permission } from './permission';
 import { permissionsForRole } from './roles';
 
 describe('permissionsForRole', () => {
-  it('grants creators no organization permissions', () => {
-    expect(permissionsForRole(UserType.CREATOR)).toEqual([]);
+  it('lets creators manage their own profile but not organizations', () => {
+    const permissions = permissionsForRole(UserType.CREATOR);
+
+    expect(permissions).toContain(Permission.CreatorProfileManage);
+    expect(permissions).not.toContain(Permission.OrgManage);
   });
 
   it('lets brand users manage their organization but not admin areas', () => {

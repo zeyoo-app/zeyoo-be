@@ -8,6 +8,7 @@ export const Permission = {
   OrgMembersManage: 'org:members:manage',
   ApiKeyManage: 'apikey:manage',
   CampaignManage: 'campaign:manage',
+  CreatorProfileManage: 'creator:profile:manage',
   AdminAccess: 'admin:access',
 } as const;
 
