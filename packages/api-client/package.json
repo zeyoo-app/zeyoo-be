@@ -1,0 +1,37 @@
+{
+  "name": "@zeyoo-app/api-client",
+  "version": "1.0.0",
+  "description": "Generated TypeScript client for the Zeyoo API",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zeyoo-app/zeyoo-be.git",
+    "directory": "packages/api-client"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../openapi.json -o src/schema.ts",
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "pnpm generate && pnpm build"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.14.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.9.0",
+    "typescript": "^5.7.2"
+  }
+}
