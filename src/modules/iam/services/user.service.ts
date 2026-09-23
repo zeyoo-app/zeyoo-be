@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Credential, User, UserType } from '@prisma/client';
+import { Credential, User, UserStatus, UserType } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 
 interface CreateUserWithPassword {
@@ -18,6 +18,14 @@ export class UserService {
 
   findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  listAll(): Promise<User[]> {
+    return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  setStatus(userId: string, status: UserStatus): Promise<User> {
+    return this.prisma.user.update({ where: { id: userId }, data: { status } });
   }
 
   findByEmailWithCredential(

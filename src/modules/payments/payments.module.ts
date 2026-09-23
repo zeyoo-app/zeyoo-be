@@ -28,6 +28,6 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
     { provide: LEDGER_REPOSITORY, useClass: PrismaLedgerRepository },
     { provide: PAYMENT_GATEWAY, useClass: StripePaymentGateway },
   ],
-  exports: [LedgerService],
+  exports: [LedgerService, FundingService],
 })
 export class PaymentsModule {}

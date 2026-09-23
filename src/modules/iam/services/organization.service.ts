@@ -20,6 +20,10 @@ export class OrganizationService {
     });
   }
 
+  listAll(): Promise<Organization[]> {
+    return this.prisma.organization.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
   listForUser(userId: string): Promise<Organization[]> {
     return this.prisma.organization.findMany({
       where: { memberships: { some: { userId } } },

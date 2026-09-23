@@ -89,6 +89,10 @@ export class CampaignService {
     return this.loadOrThrow(campaignId);
   }
 
+  listAll(): Promise<Campaign[]> {
+    return this.prisma.campaign.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
   private async loadManageable(campaignId: string, requesterId: string): Promise<Campaign> {
     const campaign = await this.loadOrThrow(campaignId);
     await this.organizations.assertMember(campaign.organizationId, requesterId);

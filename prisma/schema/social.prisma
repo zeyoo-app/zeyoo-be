@@ -1,0 +1,33 @@
+// Social ingestion module.
+// Owns encrypted OAuth tokens for connected accounts and the time-series of
+// metric snapshots that power dashboards and (later) fraud/predictive models.
+
+model SocialOAuthToken {
+  id                    String         @id @default(uuid()) @db.Uuid
+  creatorUserId         String         @db.Uuid
+  platform              SocialPlatform
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  expiresAt             DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@unique([creatorUserId, platform])
+  @@map("social_oauth_tokens")
+}
+
+model MetricSnapshot {
+  id            String         @id @default(uuid()) @db.Uuid
+  campaignId    String         @db.Uuid
+  creatorUserId String         @db.Uuid
+  platform      SocialPlatform
+  views         Int
+  likes         Int
+  comments      Int
+  shares        Int
+  capturedAt    DateTime       @default(now())
+
+  @@index([campaignId])
+  @@index([creatorUserId])
+  @@map("social_metric_snapshots")
+}

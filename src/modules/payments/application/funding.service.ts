@@ -83,4 +83,12 @@ export class FundingService {
       data: { status: 'FAILED' },
     });
   }
+
+  async totalSucceededMinor(campaignId: string): Promise<number> {
+    const result = await this.prisma.campaignFunding.aggregate({
+      _sum: { amount: true },
+      where: { campaignId, status: 'SUCCEEDED' },
+    });
+    return result._sum.amount ?? 0;
+  }
 }

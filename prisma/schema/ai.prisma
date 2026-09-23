@@ -1,0 +1,15 @@
+// AI module.
+// Owns an audit log of AI assistant requests. Model calls run through a provider
+// port (Anthropic Claude adapter).
+
+model AiRequest {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  kind      String
+  prompt    String
+  response  String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("ai_requests")
+}

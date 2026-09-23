@@ -1,0 +1,45 @@
+// Disputes module.
+// Owns dispute/appeal cases and their message thread (§1.10).
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeSubjectType {
+  WITHDRAWAL
+  SUBMISSION
+  CAMPAIGN
+  OTHER
+}
+
+model Dispute {
+  id             String             @id @default(uuid()) @db.Uuid
+  openedByUserId String             @db.Uuid
+  subjectType    DisputeSubjectType
+  subjectId      String?            @db.Uuid
+  reason         String
+  status         DisputeStatus      @default(OPEN)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  events DisputeEvent[]
+
+  @@index([openedByUserId])
+  @@map("disputes")
+}
+
+model DisputeEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  disputeId    String   @db.Uuid
+  authorUserId String   @db.Uuid
+  message      String
+  createdAt    DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+  @@map("dispute_events")
+}

@@ -16,6 +16,11 @@ export const envSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
+
+  APP_WEB_URL: z.string().url().default('http://localhost:3000'),
+
+  // Optional: enables the AI assistant features when present.
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -2,16 +2,16 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { patchNestJsSwagger, ZodValidationPipe } from 'nestjs-zod';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import { Env } from './platform/config/env.schema';
 import { AllExceptionsFilter } from './platform/http/all-exceptions.filter';
-import { setupSwagger } from './platform/openapi/setup-swagger';
+import { patchSwaggerForZod, setupSwagger } from './platform/openapi/setup-swagger';
 
 const API_PREFIX = 'v1';
 
 async function bootstrap(): Promise<void> {
-  patchNestJsSwagger();
+  patchSwaggerForZod();
 
   // rawBody is required so the Stripe webhook can verify the request signature.
   const app = await NestFactory.create(AppModule, { rawBody: true });

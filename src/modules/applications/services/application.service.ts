@@ -53,6 +53,14 @@ export class ApplicationService {
     });
   }
 
+  async summaryForCampaign(campaignId: string): Promise<{ total: number; approved: number }> {
+    const [total, approved] = await Promise.all([
+      this.prisma.application.count({ where: { campaignId } }),
+      this.prisma.application.count({ where: { campaignId, status: 'APPROVED' } }),
+    ]);
+    return { total, approved };
+  }
+
   async hasApprovedApplication(campaignId: string, creatorUserId: string): Promise<boolean> {
     const application = await this.prisma.application.findUnique({
       where: { campaignId_creatorUserId: { campaignId, creatorUserId } },

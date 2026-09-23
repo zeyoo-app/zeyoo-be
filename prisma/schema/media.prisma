@@ -1,0 +1,47 @@
+// Media module.
+// Owns media assets and their generated clips. Transcoding, clip rendering, and
+// moderation run through a media provider (e.g. Mux) added as an adapter; assets
+// start PENDING and are flipped to READY by the provider's webhook.
+
+enum MediaKind {
+  VIDEO
+  AUDIO
+  IMAGE
+}
+
+enum MediaStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+model MediaAsset {
+  id          String      @id @default(uuid()) @db.Uuid
+  ownerUserId String      @db.Uuid
+  kind        MediaKind
+  status      MediaStatus @default(PENDING)
+  sourceUrl   String
+  playbackUrl String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  clips Clip[]
+
+  @@index([ownerUserId])
+  @@map("media_assets")
+}
+
+model Clip {
+  id           String      @id @default(uuid()) @db.Uuid
+  assetId      String      @db.Uuid
+  startSeconds Int
+  endSeconds   Int
+  status       MediaStatus @default(PENDING)
+  playbackUrl  String?
+  createdAt    DateTime    @default(now())
+
+  asset MediaAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@map("media_clips")
+}

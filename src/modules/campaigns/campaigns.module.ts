@@ -17,6 +17,6 @@ import { InvitationService } from './services/invitation.service';
     CategoriesController,
   ],
   providers: [CampaignService, CategoryService, InvitationService],
-  exports: [CampaignService, InvitationService],
+  exports: [CampaignService, InvitationService, CategoryService],
 })
 export class CampaignsModule {}

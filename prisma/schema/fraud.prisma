@@ -1,0 +1,32 @@
+// Fraud & risk module.
+// Owns fraud cases and rules-based risk assessment. ML-based scoring (§1.9) is
+// added behind the same surface once post-launch data exists.
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FraudCaseStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model FraudCase {
+  id               String          @id @default(uuid()) @db.Uuid
+  campaignId       String          @db.Uuid
+  creatorUserId    String          @db.Uuid
+  level            RiskLevel
+  status           FraudCaseStatus @default(OPEN)
+  note             String?
+  createdByUserId  String          @db.Uuid
+  resolvedByUserId String?         @db.Uuid
+  resolvedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([campaignId])
+  @@map("fraud_cases")
+}

@@ -83,6 +83,14 @@ export class SubmissionService {
     });
   }
 
+  async summaryForCampaign(campaignId: string): Promise<{ total: number; approved: number }> {
+    const [total, approved] = await Promise.all([
+      this.prisma.submission.count({ where: { campaignId } }),
+      this.prisma.submission.count({ where: { campaignId, status: 'APPROVED' } }),
+    ]);
+    return { total, approved };
+  }
+
   async requireSubmission(submissionId: string): Promise<Submission> {
     const submission = await this.prisma.submission.findUnique({ where: { id: submissionId } });
     if (!submission) {

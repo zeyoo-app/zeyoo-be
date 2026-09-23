@@ -1,0 +1,34 @@
+// Billing module.
+// Owns the brand subscription plan catalog and each organization's subscription
+// state, backed by Stripe Billing.
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model Plan {
+  id            String   @id @default(uuid()) @db.Uuid
+  key           String   @unique
+  name          String
+  priceMinor    Int
+  currencyCode  String
+  stripePriceId String?
+  createdAt     DateTime @default(now())
+
+  @@map("billing_plans")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid()) @db.Uuid
+  organizationId       String             @unique @db.Uuid
+  planKey              String
+  status               SubscriptionStatus @default(INCOMPLETE)
+  stripeSubscriptionId String?            @unique
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@map("billing_subscriptions")
+}
