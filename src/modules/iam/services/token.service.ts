@@ -66,6 +66,11 @@ export class TokenService {
     });
   }
 
+  /** Revokes every active session for a user (e.g. after a password reset). */
+  async revokeAll(userId: string): Promise<void> {
+    await this.revokeAllForUser(userId);
+  }
+
   private buildTokens(accessToken: string, refreshToken: string): AuthTokens {
     return {
       tokenType: 'Bearer',

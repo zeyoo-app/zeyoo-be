@@ -19,6 +19,15 @@ export const envSchema = z.object({
 
   APP_WEB_URL: z.string().url().default('http://localhost:3000'),
 
+  // From-address for transactional email (verification codes, password resets).
+  MAIL_FROM: z.string().default('Zeyoo <no-reply@zeyoo.app>'),
+
+  // Social sign-in. Comma-separated list of accepted OAuth client IDs (audiences)
+  // per provider — one per platform (iOS / Android / web). When a provider's list
+  // is empty in production, that provider's endpoint is disabled.
+  GOOGLE_OAUTH_CLIENT_IDS: z.string().default(''),
+  APPLE_OAUTH_CLIENT_IDS: z.string().default(''),
+
   // Optional: enables the AI assistant features when present.
   ANTHROPIC_API_KEY: z.string().optional(),
 });

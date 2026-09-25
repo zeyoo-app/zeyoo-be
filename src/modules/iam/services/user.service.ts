@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { Credential, User, UserStatus, UserType } from '@prisma/client';
+import { Credential, OAuthProvider, User, UserStatus, UserType } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 
 interface CreateUserWithPassword {
   email: string;
   passwordHash: string;
   type: UserType;
+}
+
+interface CreateOAuthUser {
+  email: string | null;
+  type: UserType;
+  emailVerified: boolean;
+  provider: OAuthProvider;
+  providerUserId: string;
 }
 
 @Injectable()
@@ -37,16 +45,77 @@ export class UserService {
     });
   }
 
-  // New accounts start ACTIVE; email-verification gating is layered in once the
-  // notifications module can deliver the verification message.
+  // New password accounts start PENDING and are activated by email verification
+  // (see AuthService.verifyEmail). Social sign-in activates on first login when
+  // the provider asserts a verified email.
   createWithPassword(input: CreateUserWithPassword): Promise<User> {
     return this.prisma.user.create({
       data: {
         email: input.email,
         type: input.type,
-        status: 'ACTIVE',
+        status: 'PENDING',
         credential: { create: { passwordHash: input.passwordHash } },
       },
     });
+  }
+
+  /** Marks the address verified and activates the account (idempotent). */
+  markEmailVerified(userId: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerifiedAt: new Date(), status: 'ACTIVE' },
+    });
+  }
+
+  /** Sets (or replaces) the account's password credential. */
+  async setPassword(userId: string, passwordHash: string): Promise<void> {
+    await this.prisma.credential.upsert({
+      where: { userId },
+      create: { userId, passwordHash },
+      update: { passwordHash },
+    });
+  }
+
+  /** Resolves the user behind a linked social identity, if any. */
+  async findByOAuthIdentity(
+    provider: OAuthProvider,
+    providerUserId: string,
+  ): Promise<User | null> {
+    const identity = await this.prisma.oAuthIdentity.findUnique({
+      where: { provider_providerUserId: { provider, providerUserId } },
+      include: { user: true },
+    });
+    return identity?.user ?? null;
+  }
+
+  linkOAuthIdentity(
+    userId: string,
+    provider: OAuthProvider,
+    providerUserId: string,
+  ): Promise<unknown> {
+    return this.prisma.oAuthIdentity.create({
+      data: { userId, provider, providerUserId },
+    });
+  }
+
+  /** Creates a social-only account (no credential row) plus its identity link. */
+  createOAuthUser(input: CreateOAuthUser): Promise<User> {
+    return this.prisma.user.create({
+      data: {
+        email: input.email ?? this.placeholderEmail(input),
+        type: input.type,
+        status: input.emailVerified ? 'ACTIVE' : 'PENDING',
+        emailVerifiedAt: input.emailVerified ? new Date() : null,
+        oauthIdentities: {
+          create: { provider: input.provider, providerUserId: input.providerUserId },
+        },
+      },
+    });
+  }
+
+  // Apple can withhold the email on subsequent logins; keep the account keyed by
+  // a stable, unique placeholder when no address is available.
+  private placeholderEmail(input: CreateOAuthUser): string {
+    return `${input.provider.toLowerCase()}_${input.providerUserId}@users.noreply.zeyoo.app`;
   }
 }

@@ -3,6 +3,7 @@ import { AuthPlatformModule } from '@platform/auth';
 import { AppConfigModule } from '@platform/config/app-config.module';
 import { PrismaModule } from '@platform/database/prisma.module';
 import { HealthModule } from '@platform/health/health.module';
+import { MailModule } from '@platform/mail';
 import { AdminModule } from '@modules/admin/admin.public';
 import { AiModule } from '@modules/ai/ai.public';
 import { AnalyticsModule } from '@modules/analytics/analytics.public';
@@ -24,6 +25,7 @@ import { SubmissionsModule } from '@modules/submissions/submissions.public';
     AppConfigModule,
     PrismaModule,
     AuthPlatformModule,
+    MailModule,
     HealthModule,
     IamModule,
     CampaignsModule,
