@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
-import { CreateOrganizationDto } from '../dto/organization.dto';
+import { CreateOrganizationDto, UpdateOrganizationDto } from '../dto/organization.dto';
 import { OrganizationService } from '../services/organization.service';
 
 @ApiTags('organizations')
@@ -32,5 +32,15 @@ export class OrganizationsController {
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
   ): Promise<Organization> {
     return this.organizations.getForMember(organizationId, principal.userId);
+  }
+
+  @RequirePermission(Permission.OrgManage)
+  @Patch(':organizationId')
+  update(
+    @CurrentUser() principal: Principal,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Body() dto: UpdateOrganizationDto,
+  ): Promise<Organization> {
+    return this.organizations.update(organizationId, principal.userId, dto);
   }
 }

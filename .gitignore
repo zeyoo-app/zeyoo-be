@@ -11,6 +11,10 @@ coverage/
 # Prisma generated client
 prisma/generated/
 
+# Uploaded media (local disk store)
+uploads/
+test/.tmp-uploads/
+
 # Editor / OS
 .DS_Store
 .idea/

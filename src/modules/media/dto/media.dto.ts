@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
@@ -18,3 +19,22 @@ export const createClipSchema = z
 
 export class RegisterAssetDto extends createZodDto(registerAssetSchema) {}
 export class CreateClipDto extends createZodDto(createClipSchema) {}
+
+/** What the client gets back after an upload: a URL it can persist on a record. */
+export class UploadedImageDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ format: 'uri' })
+  url!: string;
+
+  /** Path segment under the static asset prefix — the file name on disk. */
+  @ApiProperty()
+  key!: string;
+
+  @ApiProperty({ example: 'image/png' })
+  contentType!: string;
+
+  @ApiProperty({ description: 'Stored size in bytes.' })
+  size!: number;
+}

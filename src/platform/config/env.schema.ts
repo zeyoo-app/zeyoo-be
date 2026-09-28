@@ -19,6 +19,12 @@ export const envSchema = z.object({
 
   APP_WEB_URL: z.string().url().default('http://localhost:3000'),
 
+  // Image uploads (brand logos, campaign covers). Bytes are written under
+  // UPLOAD_DIR and served as static assets from PUBLIC_ASSET_BASE_URL — point
+  // that at a CDN/bucket origin in production and keep the two in step.
+  UPLOAD_DIR: z.string().default('./uploads'),
+  PUBLIC_ASSET_BASE_URL: z.string().url().default('http://localhost:3000/uploads'),
+
   // From-address for transactional email (verification codes, password resets).
   MAIL_FROM: z.string().default('Zeyoo <no-reply@zeyoo.app>'),
 

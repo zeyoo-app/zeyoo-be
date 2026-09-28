@@ -16,6 +16,7 @@ export interface AccountProfile {
   status: UserStatus;
   emailVerifiedAt: Date | null;
   organizations: OrganizationMembershipView[];
+  hasCreatorProfile: boolean;
 }
 
 @Injectable()
@@ -23,10 +24,13 @@ export class ProfileService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getProfile(userId: string): Promise<AccountProfile> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { memberships: { include: { organization: true } } },
-    });
+    const [user, creatorProfile] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { memberships: { include: { organization: true } } },
+      }),
+      this.prisma.creatorProfile.findUnique({ where: { userId }, select: { id: true } }),
+    ]);
     if (!user) {
       throw new NotFoundException('User not found.');
     }
@@ -43,6 +47,7 @@ export class ProfileService {
         slug: membership.organization.slug,
         role: membership.role,
       })),
+      hasCreatorProfile: Boolean(creatorProfile),
     };
   }
 }

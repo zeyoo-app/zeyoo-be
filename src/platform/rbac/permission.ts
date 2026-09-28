@@ -12,6 +12,7 @@ export const Permission = {
   ContentSubmit: 'content:submit',
   WithdrawalRequest: 'withdrawal:request',
   CreatorProfileManage: 'creator:profile:manage',
+  MediaUpload: 'media:upload',
   AdminAccess: 'admin:access',
 } as const;
 

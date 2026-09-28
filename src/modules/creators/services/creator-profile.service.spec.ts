@@ -13,6 +13,8 @@ function buildProfile(status: VerificationStatus): CreatorProfile {
     id: 'profile-1',
     userId: 'user-1',
     displayName: 'Creator One',
+    username: 'creator.one',
+    avatarUrl: null,
     headline: null,
     bio: null,
     country: null,

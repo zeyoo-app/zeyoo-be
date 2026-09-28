@@ -42,6 +42,11 @@ export class OrganizationService {
     return organization;
   }
 
+  async update(organizationId: string, userId: string, input: { name?: string; website?: string; industry?: string; logoUrl?: string }): Promise<Organization> {
+    await this.assertMember(organizationId, userId);
+    return this.prisma.organization.update({ where: { id: organizationId }, data: input });
+  }
+
   async isMember(organizationId: string, userId: string): Promise<boolean> {
     const membership = await this.prisma.membership.findUnique({
       where: { userId_organizationId: { userId, organizationId } },

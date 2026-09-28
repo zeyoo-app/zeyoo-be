@@ -7,15 +7,24 @@ process.env.JWT_REFRESH_SECRET = 'e2e-refresh-secret-value';
 process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
 process.env.APP_WEB_URL = 'http://localhost:3000';
+process.env.UPLOAD_DIR = 'test/.tmp-uploads';
+process.env.PUBLIC_ASSET_BASE_URL = 'http://localhost:3000/uploads';
 
-import { INestApplication } from '@nestjs/common';
+import { rmSync } from 'node:fs';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ZodValidationPipe } from 'nestjs-zod';
 import * as argon2 from 'argon2';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
+import { UploadsService } from '../../src/modules/media/media.public';
 import { PrismaService } from '../../src/platform/database/prisma.service';
 import { AllExceptionsFilter } from '../../src/platform/http/all-exceptions.filter';
+import { IMAGE_MAX_BYTES } from '../../src/platform/http/image-upload.constants';
+
+/** Smallest valid PNG, so uploads are real image bytes rather than a stub. */
+const pngBytes =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const fakePaymentGateway = {
   // A unique intent id per call, like the real gateway, so persisted funding
@@ -35,7 +44,7 @@ const fakeBillingGateway = {
 const fakeAiProvider = { generate: jest.fn().mockResolvedValue('Draft output.') };
 
 describe('Zeyoo API (e2e)', () => {
-  let app: INestApplication;
+  let app: NestExpressApplication;
   let prisma: PrismaService;
   let http: () => request.SuperTest<request.Test>;
 
@@ -67,10 +76,12 @@ describe('Zeyoo API (e2e)', () => {
       .useValue(fakeAiProvider)
       .compile();
 
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication<NestExpressApplication>();
     app.setGlobalPrefix('v1');
     app.useGlobalPipes(new ZodValidationPipe());
     app.useGlobalFilters(new AllExceptionsFilter());
+    // Mirrors bootstrap in main.ts: uploaded images are public static assets.
+    app.useStaticAssets(app.get(UploadsService).storageRoot, { prefix: '/uploads' });
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -89,6 +100,7 @@ describe('Zeyoo API (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+    rmSync(process.env.UPLOAD_DIR as string, { recursive: true, force: true });
   });
 
   it('reports health', async () => {
@@ -296,6 +308,69 @@ describe('Zeyoo API (e2e)', () => {
       .send({ kind: 'VIDEO', sourceUrl: 'https://cdn.test/video.mp4' });
     expect(response.status).toBe(201);
     expect(response.body.status).toBe('PENDING');
+  });
+
+  it('uploads a brand logo and returns a URL the API will accept', async () => {
+    const response = await http()
+      .post('/v1/media/uploads/images')
+      .set(auth(brand.token))
+      .attach('file', Buffer.from(pngBytes, 'base64'), {
+        filename: 'logo.png',
+        contentType: 'image/png',
+      });
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ contentType: 'image/png' });
+    expect(response.body.key).toMatch(/^[0-9a-f-]{36}\.png$/);
+    expect(response.body.url).toBe(
+      `${process.env.PUBLIC_ASSET_BASE_URL ?? 'http://localhost:3000/uploads'}/${response.body.key}`,
+    );
+
+    const stored = await prisma.mediaAsset.findUnique({ where: { id: response.body.id } });
+    expect(stored).toMatchObject({ kind: 'IMAGE', status: 'READY' });
+
+    // The URL must actually serve the bytes, unauthenticated — an <Image> tag
+    // cannot send a bearer token.
+    const served = await http().get(`/uploads/${response.body.key}`);
+    expect(served.status).toBe(200);
+    expect(served.body).toEqual(Buffer.from(pngBytes, 'base64'));
+
+    // The URL is what a client persists: creating an organization with it must pass.
+    const org = await http()
+      .post('/v1/organizations')
+      .set(auth(brand.token))
+      .send({ name: `Logo Brand ${runId}`, logoUrl: response.body.url });
+    expect(org.status).toBe(201);
+    expect(org.body.logoUrl).toBe(response.body.url);
+  });
+
+  it('rejects a non-image and an unauthenticated upload', async () => {
+    const notAnImage = await http()
+      .post('/v1/media/uploads/images')
+      .set(auth(brand.token))
+      .attach('file', Buffer.from('#!/bin/sh\nrm -rf /'), {
+        filename: 'payload.sh',
+        contentType: 'application/x-sh',
+      });
+    expect(notAnImage.status).toBe(400);
+
+    const anonymous = await http()
+      .post('/v1/media/uploads/images')
+      .attach('file', Buffer.from(pngBytes, 'base64'), {
+        filename: 'logo.png',
+        contentType: 'image/png',
+      });
+    expect(anonymous.status).toBe(401);
+  });
+
+  it('rejects an image over the size limit', async () => {
+    const response = await http()
+      .post('/v1/media/uploads/images')
+      .set(auth(brand.token))
+      .attach('file', Buffer.alloc(IMAGE_MAX_BYTES + 1024, 1), {
+        filename: 'huge.png',
+        contentType: 'image/png',
+      });
+    expect(response.status).toBe(413);
   });
 
   it('lists billing plans', async () => {

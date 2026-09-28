@@ -20,6 +20,8 @@ model CreatorProfile {
   userId String @unique @db.Uuid
 
   displayName String
+  username    String  @unique
+  avatarUrl   String?
   headline    String?
   bio         String?
   country     String? // ISO 3166-1 alpha-2, uppercase

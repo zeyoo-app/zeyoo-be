@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-const platformSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'X']);
+const platformSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X']);
 
 export const connectSocialAccountSchema = z.object({
   platform: platformSchema,

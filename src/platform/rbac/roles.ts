@@ -9,6 +9,7 @@ const BRAND_PERMISSIONS: Permission[] = [
   Permission.OrgMembersManage,
   Permission.ApiKeyManage,
   Permission.CampaignManage,
+  Permission.MediaUpload,
 ];
 
 const CREATOR_PERMISSIONS: Permission[] = [
@@ -16,6 +17,7 @@ const CREATOR_PERMISSIONS: Permission[] = [
   Permission.CampaignApply,
   Permission.ContentSubmit,
   Permission.WithdrawalRequest,
+  Permission.MediaUpload,
 ];
 
 const ADMIN_PERMISSIONS: Permission[] = [...BRAND_PERMISSIONS, Permission.AdminAccess];

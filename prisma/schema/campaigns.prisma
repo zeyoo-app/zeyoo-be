@@ -6,6 +6,7 @@
 enum SocialPlatform {
   TIKTOK
   INSTAGRAM
+  SNAPCHAT
   YOUTUBE
   X
 }

@@ -2070,6 +2070,51 @@
         ]
       }
     },
+    "/media/uploads/images": {
+      "post": {
+        "operationId": "UploadsController_uploadImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedImageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/campaigns/{campaignId}/fraud/assess": {
       "post": {
         "operationId": "CampaignFraudController_assess",
@@ -2804,6 +2849,37 @@
       "CreateClipDto": {
         "type": "object",
         "properties": {}
+      },
+      "UploadedImageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "key": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "image/png"
+          },
+          "size": {
+            "type": "number",
+            "description": "Stored size in bytes."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "key",
+          "contentType",
+          "size"
+        ]
       },
       "AssessEngagementDto": {
         "type": "object",

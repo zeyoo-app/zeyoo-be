@@ -964,6 +964,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/media/uploads/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UploadsController_uploadImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/campaigns/{campaignId}/fraud/assess": {
         parameters: {
             query?: never;
@@ -1317,6 +1333,17 @@ export interface components {
         IngestMetricsDto: Record<string, never>;
         RegisterAssetDto: Record<string, never>;
         CreateClipDto: Record<string, never>;
+        UploadedImageDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            url: string;
+            key: string;
+            /** @example image/png */
+            contentType: string;
+            /** @description Stored size in bytes. */
+            size: number;
+        };
         AssessEngagementDto: Record<string, never>;
         FlagFraudDto: Record<string, never>;
         OpenDisputeDto: Record<string, never>;
@@ -2813,6 +2840,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    UploadsController_uploadImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadedImageDto"];
+                };
             };
         };
     };

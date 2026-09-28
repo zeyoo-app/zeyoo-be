@@ -9,3 +9,7 @@ export const createOrganizationSchema = z.object({
 });
 
 export class CreateOrganizationDto extends createZodDto(createOrganizationSchema) {}
+
+export const updateOrganizationSchema = createOrganizationSchema.partial();
+
+export class UpdateOrganizationDto extends createZodDto(updateOrganizationSchema) {}
