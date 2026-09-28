@@ -21,6 +21,11 @@ enum CampaignVisibility {
   PRIVATE
 }
 
+enum CampaignContentType {
+  UGC
+  CLIPPING
+}
+
 // The two contract-agreed creator-earnings methods (§1.5).
 enum RewardType {
   FIXED_PER_ITEM
@@ -56,8 +61,10 @@ model Campaign {
   goals       String?
   audience    String?
   guidelines  String?
+  coverImageUrl String?
 
   platform   SocialPlatform
+  contentType CampaignContentType @default(UGC)
   visibility CampaignVisibility @default(PRIVATE)
   status     CampaignStatus     @default(DRAFT)
 

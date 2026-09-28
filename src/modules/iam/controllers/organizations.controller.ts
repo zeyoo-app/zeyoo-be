@@ -18,7 +18,7 @@ export class OrganizationsController {
     @CurrentUser() principal: Principal,
     @Body() dto: CreateOrganizationDto,
   ): Promise<Organization> {
-    return this.organizations.create(principal.userId, dto.name);
+    return this.organizations.create(principal.userId, dto);
   }
 
   @Get()

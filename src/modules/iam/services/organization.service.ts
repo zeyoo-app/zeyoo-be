@@ -10,11 +10,11 @@ export class OrganizationService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Creating an organization makes the creator its first OWNER, atomically.
-  create(ownerUserId: string, name: string): Promise<Organization> {
+  create(ownerUserId: string, input: { name: string; website?: string; industry?: string; logoUrl?: string }): Promise<Organization> {
     return this.prisma.organization.create({
       data: {
-        name,
-        slug: this.slugify(name),
+        ...input,
+        slug: this.slugify(input.name),
         memberships: { create: { userId: ownerUserId, role: 'OWNER' } },
       },
     });

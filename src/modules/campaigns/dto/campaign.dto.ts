@@ -8,6 +8,7 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const platformSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'X']);
 const visibilitySchema = z.enum(['PUBLIC', 'PRIVATE']);
 const rewardTypeSchema = z.enum(['FIXED_PER_ITEM', 'PER_VIEW']);
+const contentTypeSchema = z.enum(['UGC', 'CLIPPING']);
 
 const campaignFields = z.object({
   title: z.string().min(TITLE_MIN).max(TITLE_MAX),
@@ -15,7 +16,9 @@ const campaignFields = z.object({
   goals: z.string().max(2000).optional(),
   audience: z.string().max(2000).optional(),
   guidelines: z.string().max(5000).optional(),
+  coverImageUrl: z.string().url().max(2048).optional(),
   platform: platformSchema,
+  contentType: contentTypeSchema.default('UGC'),
   categoryId: z.string().uuid().optional(),
   visibility: visibilitySchema.default('PRIVATE'),
   startDate: z.coerce.date(),
