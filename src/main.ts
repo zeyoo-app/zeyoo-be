@@ -26,6 +26,17 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableShutdownHooks();
 
+  // The web app calls the API straight from the browser, so cross-origin requests
+  // (and their preflights) must be allowed for the configured origins.
+  const settings = app.get<ConfigService<Env, true>>(ConfigService);
+  const origins = [
+    settings.get('APP_WEB_URL', { infer: true }),
+    ...settings.get('CORS_ORIGINS', { infer: true }).split(','),
+  ]
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter((origin) => origin.length > 0);
+  app.enableCors({ origin: origins, credentials: true });
+
   // Uploaded images are public (an <Image> tag cannot send an auth header), so
   // they are served ahead of the router and outside the /v1 prefix.
   app.useStaticAssets(app.get(UploadsService).storageRoot, {

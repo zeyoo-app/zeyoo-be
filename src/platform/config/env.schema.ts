@@ -18,6 +18,9 @@ export const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
 
   APP_WEB_URL: z.string().url().default('http://localhost:3000'),
+  // Extra browser origins allowed to call the API (comma-separated, e.g. the www
+  // and apex web domains). APP_WEB_URL is always allowed.
+  CORS_ORIGINS: z.string().default(''),
 
   // Image uploads (brand logos, campaign covers). Bytes are written under
   // UPLOAD_DIR and served as static assets from PUBLIC_ASSET_BASE_URL — point
