@@ -18,4 +18,8 @@ export class LogMailer extends Mailer {
   async sendPasswordResetCode(to: string, code: string): Promise<void> {
     this.logger.log(`[password-reset] to=${to} code=${code}`);
   }
+
+  async sendLoginCode(to: string, code: string): Promise<void> {
+    this.logger.log(`[login] to=${to} code=${code}`);
+  }
 }

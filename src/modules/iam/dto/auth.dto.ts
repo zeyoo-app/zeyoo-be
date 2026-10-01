@@ -16,6 +16,10 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const requestLoginCodeSchema = z.object({
+  email: z.string().email(),
+});
+
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
@@ -24,6 +28,11 @@ const CODE_LENGTH = 6;
 const verificationCode = z.string().length(CODE_LENGTH).regex(/^\d+$/, 'Code must be 6 digits.');
 
 export const verifyEmailSchema = z.object({
+  code: verificationCode,
+});
+
+export const verifyLoginCodeSchema = z.object({
+  email: z.string().email(),
   code: verificationCode,
 });
 
@@ -69,6 +78,8 @@ export const verifyPhoneCodeSchema = z.object({
 
 export class RegisterDto extends createZodDto(registerSchema) {}
 export class LoginDto extends createZodDto(loginSchema) {}
+export class RequestLoginCodeDto extends createZodDto(requestLoginCodeSchema) {}
+export class VerifyLoginCodeDto extends createZodDto(verifyLoginCodeSchema) {}
 export class RefreshDto extends createZodDto(refreshSchema) {}
 export class LogoutDto extends createZodDto(refreshSchema) {}
 export class VerifyEmailDto extends createZodDto(verifyEmailSchema) {}

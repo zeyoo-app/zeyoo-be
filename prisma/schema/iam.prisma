@@ -28,6 +28,7 @@ enum OAuthProvider {
 enum VerificationPurpose {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  LOGIN
 }
 
 model User {

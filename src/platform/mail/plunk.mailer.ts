@@ -52,6 +52,14 @@ export class PlunkMailer extends Mailer {
     });
   }
 
+  async sendLoginCode(to: string, code: string): Promise<void> {
+    await this.send({
+      to,
+      subject: 'Your Zeyoo sign-in code',
+      body: codeBody('Use this code to sign in to your Zeyoo account.', code),
+    });
+  }
+
   /**
    * The code is the entire payload, so it is set in the email's own text rather
    * than a template. No unsubscribe link: this is transactional mail triggered by

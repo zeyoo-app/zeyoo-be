@@ -17,9 +17,11 @@ import {
   OAuthSignInDto,
   RefreshDto,
   RegisterDto,
+  RequestLoginCodeDto,
   RequestPhoneCodeDto,
   ResetPasswordDto,
   VerifyEmailDto,
+  VerifyLoginCodeDto,
   VerifyPhoneCodeDto,
 } from '../dto/auth.dto';
 import { AuthService } from '../services/auth.service';
@@ -50,6 +52,22 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto): Promise<AuthTokens> {
     return this.auth.login(dto);
+  }
+
+  // Emails a 6-digit sign-in code. Always 204 — whether or not the address has an
+  // account — so it cannot be used to discover who is registered.
+  @Public()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('login/code')
+  requestLoginCode(@Body() dto: RequestLoginCodeDto): Promise<void> {
+    return this.auth.requestLoginCode(dto.email);
+  }
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('login/code/verify')
+  verifyLoginCode(@Body() dto: VerifyLoginCodeDto): Promise<AuthTokens> {
+    return this.auth.verifyLoginCode(dto.email, dto.code);
   }
 
   @Public()

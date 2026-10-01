@@ -68,6 +68,36 @@ export class AuthService {
     return this.tokens.issueFor(user);
   }
 
+  /**
+   * Starts passwordless email sign-in. Always resolves so the endpoint never
+   * reveals which addresses are registered; unknown addresses simply get no email.
+   */
+  async requestLoginCode(email: string): Promise<void> {
+    const user = await this.users.findByEmail(email);
+    if (!user?.email || user.status === 'SUSPENDED') {
+      return;
+    }
+    const code = await this.codes.issue(user.id, 'LOGIN');
+    await this.mailer.sendLoginCode(user.email, code);
+  }
+
+  /** Completes email-code sign-in; a correct code also proves control of the inbox. */
+  async verifyLoginCode(email: string, code: string): Promise<AuthTokens> {
+    const user = await this.users.findByEmail(email);
+    if (!user) {
+      // Mirror the code-service failure so a missing account is indistinguishable.
+      throw new BadRequestException('This code is invalid or has expired.');
+    }
+    await this.codes.consume(user.id, 'LOGIN', code);
+    if (user.status === 'SUSPENDED') {
+      throw new ForbiddenException('This account is suspended.');
+    }
+    if (!user.emailVerifiedAt) {
+      await this.users.markEmailVerified(user.id);
+    }
+    return this.tokens.issueFor(user);
+  }
+
   refresh(refreshToken: string): Promise<AuthTokens> {
     return this.tokens.rotate(refreshToken);
   }
