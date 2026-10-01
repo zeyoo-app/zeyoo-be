@@ -36,6 +36,8 @@ export class BillingWebhookController {
     const event = this.gateway.parseWebhookEvent(request.rawBody, signature);
     if (event.kind === 'SUBSCRIPTION_ACTIVATED') {
       await this.billing.activate(event.organizationId, event.stripeSubscriptionId);
+    } else if (event.kind === 'CARD_SAVED') {
+      await this.billing.saveCard(event.organizationId, event.setupIntentId);
     } else if (event.kind === 'SUBSCRIPTION_CANCELED') {
       await this.billing.cancelByStripeId(event.stripeSubscriptionId);
     }

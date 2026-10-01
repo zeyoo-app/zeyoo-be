@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { IamModule } from '@modules/iam/iam.public';
+import { PaymentsModule } from '@modules/payments/payments.public';
 import { BillingWebhookController } from './controllers/billing-webhook.controller';
 import { OrgSubscriptionController } from './controllers/org-subscription.controller';
 import { PlansController } from './controllers/plans.controller';
@@ -8,7 +9,7 @@ import { BILLING_GATEWAY } from './ports/billing-gateway.port';
 import { BillingService } from './services/billing.service';
 
 @Module({
-  imports: [IamModule],
+  imports: [IamModule, PaymentsModule],
   controllers: [PlansController, OrgSubscriptionController, BillingWebhookController],
   providers: [BillingService, { provide: BILLING_GATEWAY, useClass: StripeBillingGateway }],
   exports: [BillingService],

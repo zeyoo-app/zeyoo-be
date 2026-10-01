@@ -63,6 +63,54 @@
         ]
       }
     },
+    "/auth/login/code": {
+      "post": {
+        "operationId": "AuthController_requestLoginCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestLoginCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login/code/verify": {
+      "post": {
+        "operationId": "AuthController_verifyLoginCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyLoginCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/refresh": {
       "post": {
         "operationId": "AuthController_refresh",
@@ -1638,6 +1686,91 @@
         ]
       }
     },
+    "/me/wallet": {
+      "get": {
+        "operationId": "WalletController_getWallet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/me/ledger": {
+      "get": {
+        "operationId": "WalletController_getLedger",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/me/payout/connect": {
+      "post": {
+        "operationId": "WalletController_connectPayout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/organizations/{organizationId}/ledger": {
+      "get": {
+        "operationId": "WalletController_getOrganizationLedger",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
     "/admin/withdrawals": {
       "get": {
         "operationId": "AdminPayoutsController_listOpen",
@@ -1801,6 +1934,62 @@
     "/organizations/{organizationId}/subscription": {
       "get": {
         "operationId": "OrgSubscriptionController_get",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/organizations/{organizationId}/billing": {
+      "get": {
+        "operationId": "OrgSubscriptionController_getBilling",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/organizations/{organizationId}/payment-methods": {
+      "post": {
+        "operationId": "OrgSubscriptionController_addPaymentMethod",
         "parameters": [
           {
             "name": "organizationId",
@@ -2823,6 +3012,14 @@
         "properties": {}
       },
       "LoginDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RequestLoginCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "VerifyLoginCodeDto": {
         "type": "object",
         "properties": {}
       },

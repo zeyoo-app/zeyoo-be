@@ -33,8 +33,14 @@ export class WithdrawalService {
     if (amountMinor > available) {
       throw new ConflictException('Amount exceeds available balance.');
     }
+    const payoutAccount = await this.prisma.payoutAccount.findUnique({ where: { creatorUserId } });
     return this.prisma.withdrawal.create({
-      data: { creatorUserId, amount: amountMinor, currencyCode },
+      data: {
+        creatorUserId,
+        amount: amountMinor,
+        currencyCode,
+        destinationAccountId: payoutAccount?.stripeAccountId ?? null,
+      },
     });
   }
 

@@ -32,3 +32,16 @@ model Subscription {
 
   @@map("billing_subscriptions")
 }
+
+// The card an organization saved through Stripe Checkout (setup mode). Only the
+// display fields are kept; the card itself never touches this system.
+model BillingPaymentMethod {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @unique @db.Uuid
+  brand          String?
+  last4          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("billing_payment_methods")
+}

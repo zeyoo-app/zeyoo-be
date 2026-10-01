@@ -8,6 +8,7 @@ import {
   FundingIntent,
   GatewayEvent,
   PaymentGatewayPort,
+  PayoutOnboardingInput,
 } from '../domain/ports/payment-gateway.port';
 
 @Injectable()
@@ -40,6 +41,32 @@ export class StripePaymentGateway implements PaymentGatewayPort {
       metadata: input.metadata,
     });
     return { payoutId: transfer.id };
+  }
+
+  async createPayoutOnboarding(
+    input: PayoutOnboardingInput,
+  ): Promise<{ accountId: string; url: string }> {
+    const accountId =
+      input.existingAccountId ??
+      (
+        await this.stripe.accounts.create({
+          type: 'express',
+          capabilities: { transfers: { requested: true } },
+          metadata: input.metadata,
+        })
+      ).id;
+    const link = await this.stripe.accountLinks.create({
+      account: accountId,
+      type: 'account_onboarding',
+      return_url: input.returnUrl,
+      refresh_url: input.refreshUrl,
+    });
+    return { accountId, url: link.url };
+  }
+
+  async isPayoutAccountReady(accountId: string): Promise<boolean> {
+    const account = await this.stripe.accounts.retrieve(accountId);
+    return account.payouts_enabled === true;
   }
 
   parseWebhookEvent(payload: Buffer, signature: string): GatewayEvent {

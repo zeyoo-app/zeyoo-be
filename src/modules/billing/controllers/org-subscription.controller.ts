@@ -13,15 +13,15 @@ import { Subscription } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
 import { SubscribeDto } from '../dto/subscribe.dto';
-import { BillingService } from '../services/billing.service';
+import { BillingService, BrandBillingView } from '../services/billing.service';
 
 @ApiTags('billing')
 @ApiBearerAuth()
-@Controller('organizations/:organizationId/subscription')
+@Controller('organizations/:organizationId')
 export class OrgSubscriptionController {
   constructor(private readonly billing: BillingService) {}
 
-  @Get()
+  @Get('subscription')
   get(
     @CurrentUser() principal: Principal,
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
@@ -29,9 +29,27 @@ export class OrgSubscriptionController {
     return this.billing.getSubscription(organizationId, principal.userId);
   }
 
+  @Get('billing')
+  getBilling(
+    @CurrentUser() principal: Principal,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+  ): Promise<BrandBillingView> {
+    return this.billing.getBilling(organizationId, principal.userId);
+  }
+
   @RequirePermission(Permission.OrgManage)
   @HttpCode(HttpStatus.OK)
-  @Post('checkout')
+  @Post('payment-methods')
+  addPaymentMethod(
+    @CurrentUser() principal: Principal,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+  ): Promise<{ url: string }> {
+    return this.billing.startCardSetup(organizationId, principal.userId);
+  }
+
+  @RequirePermission(Permission.OrgManage)
+  @HttpCode(HttpStatus.OK)
+  @Post('subscription/checkout')
   checkout(
     @CurrentUser() principal: Principal,
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
