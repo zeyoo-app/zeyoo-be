@@ -8,7 +8,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
-import { OAuthProvider } from '@prisma/client';
+import { OAuthProvider, UserType } from '@prisma/client';
 import { CurrentUser, Principal, Public } from '@platform/auth';
 import {
   ForgotPasswordDto,
@@ -17,8 +17,10 @@ import {
   OAuthSignInDto,
   RefreshDto,
   RegisterDto,
+  RequestPhoneCodeDto,
   ResetPasswordDto,
   VerifyEmailDto,
+  VerifyPhoneCodeDto,
 } from '../dto/auth.dto';
 import { AuthService } from '../services/auth.service';
 import { OAuthService } from '../services/oauth.service';
@@ -90,6 +92,25 @@ export class AuthController {
   @Post('password/reset')
   resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
     return this.auth.resetPassword(dto.email, dto.code, dto.newPassword);
+  }
+
+  // Texts a 6-digit code to a phone number. Sign-in and sign-up share this
+  // endpoint because the number alone cannot say which one it is, and answering
+  // differently would turn it into an account-enumeration oracle.
+  @Public()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('phone/code')
+  requestPhoneCode(@Body() dto: RequestPhoneCodeDto): Promise<void> {
+    return this.auth.requestPhoneCode(dto.phone);
+  }
+
+  // Exchanges a texted code for a session, creating the account when the number
+  // is new. Returns the same token shape as /auth/login and /auth/register.
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('phone/code/verify')
+  verifyPhoneCode(@Body() dto: VerifyPhoneCodeDto): Promise<AuthTokens> {
+    return this.auth.verifyPhoneCode(dto.phone, dto.code, dto.userType as UserType | undefined);
   }
 
   @Public()

@@ -26,7 +26,24 @@ export const envSchema = z.object({
   PUBLIC_ASSET_BASE_URL: z.string().url().default('http://localhost:3000/uploads'),
 
   // From-address for transactional email (verification codes, password resets).
+  // Accepts a bare address or display-name form; the adapter splits the two.
   MAIL_FROM: z.string().default('Zeyoo <no-reply@zeyoo.app>'),
+
+  // Transactional email delivery for verification codes and password resets.
+  // `auto` uses Plunk whenever an API key is present and otherwise falls back to
+  // logging codes (fine in development, refused in production). The sender domain
+  // in MAIL_FROM must be verified in the Plunk project. Point this at another
+  // adapter to migrate.
+  MAIL_PROVIDER: z.enum(['auto', 'log', 'plunk']).default('auto'),
+  PLUNK_API_KEY: z.string().optional(),
+
+  // SMS delivery for phone-number sign-in. `auto` uses Twilio whenever its
+  // credentials are present and otherwise falls back to logging codes (fine in
+  // development, never in production). Point this at another adapter to migrate.
+  SMS_PROVIDER: z.enum(['auto', 'log', 'twilio']).default('auto'),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
 
   // Social sign-in. Comma-separated list of accepted OAuth client IDs (audiences)
   // per provider — one per platform (iOS / Android / web). When a provider's list

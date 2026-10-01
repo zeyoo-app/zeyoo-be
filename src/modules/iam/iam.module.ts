@@ -14,6 +14,7 @@ import { OAuthService } from './services/oauth.service';
 import { IdTokenOAuthVerifier, OAuthVerifier } from './services/oauth-verifier';
 import { OrganizationService } from './services/organization.service';
 import { PasswordService } from './services/password.service';
+import { PhoneCodeService } from './services/phone-code.service';
 import { ProfileService } from './services/profile.service';
 import { TokenService } from './services/token.service';
 import { UserService } from './services/user.service';
@@ -41,6 +42,7 @@ import { VerificationCodeService } from './services/verification-code.service';
     OAuthService,
     { provide: OAuthVerifier, useClass: IdTokenOAuthVerifier },
     VerificationCodeService,
+    PhoneCodeService,
     TokenService,
     PasswordService,
     UserService,

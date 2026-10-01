@@ -16,6 +16,11 @@ interface CreateOAuthUser {
   providerUserId: string;
 }
 
+interface CreatePhoneUser {
+  phone: string;
+  type: UserType;
+}
+
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
@@ -26,6 +31,10 @@ export class UserService {
 
   findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  findByPhone(phone: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { phone } });
   }
 
   listAll(): Promise<User[]> {
@@ -64,6 +73,30 @@ export class UserService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { emailVerifiedAt: new Date(), status: 'ACTIVE' },
+    });
+  }
+
+  /**
+   * Creates an account from a verified phone number. There is no credential row:
+   * possession of the number is the credential, and the OTP that proved it is
+   * consumed before this runs, so the account is born ACTIVE.
+   */
+  createWithPhone(input: CreatePhoneUser): Promise<User> {
+    return this.prisma.user.create({
+      data: {
+        phone: input.phone,
+        type: input.type,
+        status: 'ACTIVE',
+        phoneVerifiedAt: new Date(),
+      },
+    });
+  }
+
+  /** Attaches a verified phone number to an existing account. */
+  attachPhone(userId: string, phone: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { phone, phoneVerifiedAt: new Date() },
     });
   }
 

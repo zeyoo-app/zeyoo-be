@@ -31,13 +31,19 @@ enum VerificationPurpose {
 }
 
 model User {
-  id              String     @id @default(uuid()) @db.Uuid
-  email           String     @unique
-  type            UserType
-  status          UserStatus @default(PENDING)
-  emailVerifiedAt DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id     String  @id @default(uuid()) @db.Uuid
+  // Nullable so an account can be created from a phone number alone. At least one
+  // of email/phone is always present; a sign-in identifier is proven by either
+  // emailVerifiedAt or phoneVerifiedAt.
+  email String? @unique
+  // Stored in E.164 form (+15551234567) so lookups are a single exact match.
+  phone         String?    @unique
+  type          UserType
+  status        UserStatus @default(PENDING)
+  emailVerifiedAt   DateTime?
+  phoneVerifiedAt   DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   credential        Credential?
   refreshTokens     RefreshToken[]
@@ -46,6 +52,23 @@ model User {
   memberships       Membership[]
 
   @@map("iam_users")
+}
+
+// Hashed 6-digit codes for SMS delivery. Deliberately keyed by phone rather than
+// by userId, because a phone code is the first proof of identity for an account
+// that does not exist yet: the row must survive (and be consumed) before the
+// User it will create is ever written.
+model PhoneVerificationCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([phone])
+  @@map("iam_phone_verification_codes")
 }
 
 // Hashed 6-digit codes for email verification and password reset. Only the hash

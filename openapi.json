@@ -207,6 +207,54 @@
         ]
       }
     },
+    "/auth/phone/code": {
+      "post": {
+        "operationId": "AuthController_requestPhoneCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestPhoneCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/phone/code/verify": {
+      "post": {
+        "operationId": "AuthController_verifyPhoneCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyPhoneCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/oauth/{provider}": {
       "post": {
         "operationId": "AuthController_oauthSignIn",
@@ -322,6 +370,42 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "organizations"
+        ]
+      },
+      "patch": {
+        "operationId": "OrganizationsController_update",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrganizationDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2762,11 +2846,23 @@
         "type": "object",
         "properties": {}
       },
+      "RequestPhoneCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "VerifyPhoneCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
       "OAuthSignInDto": {
         "type": "object",
         "properties": {}
       },
       "CreateOrganizationDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateOrganizationDto": {
         "type": "object",
         "properties": {}
       },

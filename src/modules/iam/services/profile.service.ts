@@ -11,10 +11,13 @@ export interface OrganizationMembershipView {
 
 export interface AccountProfile {
   id: string;
-  email: string;
+  email: string | null;
+  /** E.164, present on accounts created or linked from a phone number. */
+  phone: string | null;
   type: UserType;
   status: UserStatus;
   emailVerifiedAt: Date | null;
+  phoneVerifiedAt: Date | null;
   organizations: OrganizationMembershipView[];
   hasCreatorProfile: boolean;
 }
@@ -38,9 +41,11 @@ export class ProfileService {
     return {
       id: user.id,
       email: user.email,
+      phone: user.phone,
       type: user.type,
       status: user.status,
       emailVerifiedAt: user.emailVerifiedAt,
+      phoneVerifiedAt: user.phoneVerifiedAt,
       organizations: user.memberships.map((membership) => ({
         organizationId: membership.organizationId,
         name: membership.organization.name,
