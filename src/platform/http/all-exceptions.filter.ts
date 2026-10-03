@@ -56,6 +56,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       return this.resolvePrisma(exception);
     }
+    // Errors from Express middleware (body-parser, e.g. an oversized payload) carry
+    // their own 4xx status; surfacing it beats reporting a client mistake as a 500.
+    const clientError = exception as { status?: unknown; expose?: unknown; message?: unknown };
+    if (
+      typeof clientError.status === 'number' &&
+      clientError.status >= 400 &&
+      clientError.status < 500 &&
+      clientError.expose === true
+    ) {
+      return { status: clientError.status, message: String(clientError.message) };
+    }
     return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Internal server error.' };
   }
 
