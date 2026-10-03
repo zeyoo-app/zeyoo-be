@@ -5,6 +5,11 @@ process.env.JWT_ACCESS_SECRET = 'test-access-secret-value';
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-value';
 process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
+process.env.R2_ACCOUNT_ID = 'test-account';
+process.env.R2_ACCESS_KEY_ID = 'test-key';
+process.env.R2_SECRET_ACCESS_KEY = 'test-secret';
+process.env.R2_BUCKET = 'test-bucket';
+process.env.PUBLIC_ASSET_BASE_URL = 'https://cdn.test';
 
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';

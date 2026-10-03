@@ -14,6 +14,11 @@ const BASE_ENV: Record<string, string> = {
   JWT_REFRESH_SECRET: 'test-refresh-secret-value',
   STRIPE_SECRET_KEY: 'sk_test_dummy',
   STRIPE_WEBHOOK_SECRET: 'whsec_dummy',
+  R2_ACCOUNT_ID: 'test-account',
+  R2_ACCESS_KEY_ID: 'test-key',
+  R2_SECRET_ACCESS_KEY: 'test-secret',
+  R2_BUCKET: 'test-bucket',
+  PUBLIC_ASSET_BASE_URL: 'https://cdn.test',
 };
 
 const TWILIO_ENV: Record<string, string> = {

@@ -2,3 +2,4 @@
 export { MediaModule } from './media.module';
 export { MediaService } from './services/media.service';
 export { UploadsService } from './services/uploads.service';
+export { ImageStorage } from './storage/image-storage';

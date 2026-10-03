@@ -2,11 +2,10 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MediaKind, MediaStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
 import { Env } from '@platform/config/env.schema';
 import { PrismaService } from '@platform/database/prisma.service';
 import { UploadedImageDto } from '../dto/media.dto';
+import { ImageStorage } from '../storage/image-storage';
 
 /**
  * Formats the mobile picker can hand us. The extension is derived from the
@@ -21,30 +20,22 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 };
 
 /**
- * Writes uploaded images to local disk and hands back a public URL. The asset is
- * also recorded as a MediaAsset so ownership and future cleanup have a trail.
- *
- * Local disk is the default store; swapping in S3/GCS means replacing the write
- * and URL construction here — the controller and clients stay the same.
+ * Stores uploaded images in object storage (Cloudflare R2) and hands back a public
+ * URL. The asset is also recorded as a MediaAsset so ownership and future cleanup
+ * have a trail.
  */
 @Injectable()
 export class UploadsService {
-  private readonly root: string;
   private readonly publicBaseUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly storage: ImageStorage,
     config: ConfigService<Env, true>,
   ) {
-    this.root = resolve(config.get('UPLOAD_DIR', { infer: true }));
     this.publicBaseUrl = config
       .get('PUBLIC_ASSET_BASE_URL', { infer: true })
       .replace(/\/+$/, '');
-  }
-
-  /** Directory served as static assets; mounted by bootstrap in main.ts. */
-  get storageRoot(): string {
-    return this.root;
   }
 
   async storeImage(
@@ -62,8 +53,7 @@ export class UploadsService {
     }
 
     const key = `${randomUUID()}${extension}`;
-    await mkdir(this.root, { recursive: true });
-    await writeFile(join(this.root, key), file.buffer, { flag: 'wx' });
+    await this.storage.put(key, file.buffer, file.mimetype);
 
     const url = `${this.publicBaseUrl}/${key}`;
     const asset = await this.prisma.mediaAsset.create({

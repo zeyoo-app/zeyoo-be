@@ -5,14 +5,11 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ZodValidationPipe } from 'nestjs-zod';
 import { AppModule } from './app.module';
-import { UploadsService } from './modules/media/media.public';
 import { Env } from './platform/config/env.schema';
 import { AllExceptionsFilter } from './platform/http/all-exceptions.filter';
 import { patchSwaggerForZod, setupSwagger } from './platform/openapi/setup-swagger';
 
 const API_PREFIX = 'v1';
-// Must match PUBLIC_ASSET_BASE_URL, which is what UploadsService builds URLs from.
-const UPLOAD_PREFIX = '/uploads';
 
 async function bootstrap(): Promise<void> {
   patchSwaggerForZod();
@@ -36,12 +33,6 @@ async function bootstrap(): Promise<void> {
     .map((origin) => origin.trim().replace(/\/$/, ''))
     .filter((origin) => origin.length > 0);
   app.enableCors({ origin: origins, credentials: true });
-
-  // Uploaded images are public (an <Image> tag cannot send an auth header), so
-  // they are served ahead of the router and outside the /v1 prefix.
-  app.useStaticAssets(app.get(UploadsService).storageRoot, {
-    prefix: UPLOAD_PREFIX,
-  });
 
   setupSwagger(app);
 

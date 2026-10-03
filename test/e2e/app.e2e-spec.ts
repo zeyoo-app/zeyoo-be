@@ -7,16 +7,18 @@ process.env.JWT_REFRESH_SECRET = 'e2e-refresh-secret-value';
 process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
 process.env.APP_WEB_URL = 'http://localhost:3000';
-process.env.UPLOAD_DIR = 'test/.tmp-uploads';
-process.env.PUBLIC_ASSET_BASE_URL = 'http://localhost:3000/uploads';
+process.env.R2_ACCOUNT_ID = 'e2e-account';
+process.env.R2_ACCESS_KEY_ID = 'e2e-key';
+process.env.R2_SECRET_ACCESS_KEY = 'e2e-secret';
+process.env.R2_BUCKET = 'e2e-bucket';
+process.env.PUBLIC_ASSET_BASE_URL = 'https://cdn.e2e.test';
 
-import { rmSync } from 'node:fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ZodValidationPipe } from 'nestjs-zod';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
-import { UploadsService } from '../../src/modules/media/media.public';
+import { ImageStorage } from '../../src/modules/media/media.public';
 import { Mailer } from '../../src/platform/mail';
 import { PrismaService } from '../../src/platform/database/prisma.service';
 import { AllExceptionsFilter } from '../../src/platform/http/all-exceptions.filter';
@@ -46,6 +48,14 @@ const sentCodes = new Map<string, string>();
 const fakeMailer = {
   sendSignInCode: jest.fn().mockImplementation((to: string, code: string) => {
     sentCodes.set(to, code);
+    return Promise.resolve();
+  }),
+};
+/** Keeps uploads in memory so e2e never touches Cloudflare R2. */
+const storedImages = new Map<string, Buffer>();
+const fakeImageStorage = {
+  put: jest.fn().mockImplementation((key: string, body: Buffer) => {
+    storedImages.set(key, body);
     return Promise.resolve();
   }),
 };
@@ -92,6 +102,8 @@ describe('Zeyoo API (e2e)', () => {
       .useValue(fakeBillingGateway)
       .overrideProvider(Mailer)
       .useValue(fakeMailer)
+      .overrideProvider(ImageStorage)
+      .useValue(fakeImageStorage)
       .overrideProvider('AiProviderPort')
       .useValue(fakeAiProvider)
       .compile();
@@ -100,8 +112,6 @@ describe('Zeyoo API (e2e)', () => {
     app.setGlobalPrefix('v1');
     app.useGlobalPipes(new ZodValidationPipe());
     app.useGlobalFilters(new AllExceptionsFilter());
-    // Mirrors bootstrap in main.ts: uploaded images are public static assets.
-    app.useStaticAssets(app.get(UploadsService).storageRoot, { prefix: '/uploads' });
     await app.init();
 
     prisma = app.get(PrismaService);
@@ -119,7 +129,6 @@ describe('Zeyoo API (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
-    rmSync(process.env.UPLOAD_DIR as string, { recursive: true, force: true });
   });
 
   it('reports health', async () => {
@@ -335,17 +344,14 @@ describe('Zeyoo API (e2e)', () => {
     expect(response.body).toMatchObject({ contentType: 'image/png' });
     expect(response.body.key).toMatch(/^[0-9a-f-]{36}\.png$/);
     expect(response.body.url).toBe(
-      `${process.env.PUBLIC_ASSET_BASE_URL ?? 'http://localhost:3000/uploads'}/${response.body.key}`,
+      `${process.env.PUBLIC_ASSET_BASE_URL}/${response.body.key}`,
     );
 
     const stored = await prisma.mediaAsset.findUnique({ where: { id: response.body.id } });
     expect(stored).toMatchObject({ kind: 'IMAGE', status: 'READY' });
 
-    // The URL must actually serve the bytes, unauthenticated — an <Image> tag
-    // cannot send a bearer token.
-    const served = await http().get(`/uploads/${response.body.key}`);
-    expect(served.status).toBe(200);
-    expect(served.body).toEqual(Buffer.from(pngBytes, 'base64'));
+    // The bytes went to object storage under that key; serving them is the CDN's job.
+    expect(storedImages.get(response.body.key)).toEqual(Buffer.from(pngBytes, 'base64'));
 
     // The URL is what a client persists: creating an organization with it must pass.
     const org = await http()

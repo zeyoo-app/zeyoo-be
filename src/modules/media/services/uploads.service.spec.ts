@@ -1,11 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MediaKind, MediaStatus } from '@prisma/client';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { PrismaService } from '@platform/database/prisma.service';
+import { ImageStorage } from '../storage/image-storage';
 import { UploadsService } from './uploads.service';
 
 const OWNER = 'user-1';
@@ -27,38 +25,29 @@ function buildFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer
   };
 }
 
-function setup(
-  uploadDir: string,
-  baseUrl = 'https://cdn.test/uploads',
-): { service: UploadsService; create: jest.Mock; root: string } {
+function setup(baseUrl = 'https://cdn.test'): {
+  service: UploadsService;
+  create: jest.Mock;
+  put: jest.Mock;
+} {
   const create = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'asset-1', ...data }));
   const prisma = { mediaAsset: { create } } as unknown as PrismaService;
-  const config = {
-    get: (key: string) => (key === 'UPLOAD_DIR' ? uploadDir : baseUrl),
-  } as unknown as ConfigService<never, true>;
-  return { service: new UploadsService(prisma, config), create, root: uploadDir };
+  const put = jest.fn().mockResolvedValue(undefined);
+  const storage = { put } as unknown as ImageStorage;
+  const config = { get: () => baseUrl } as unknown as ConfigService<never, true>;
+  return { service: new UploadsService(prisma, storage, config), create, put };
 }
 
 describe('UploadsService.storeImage', () => {
-  let uploadDir: string;
-
-  beforeEach(() => {
-    uploadDir = mkdtempSync(join(tmpdir(), 'zeyoo-uploads-'));
-  });
-
-  afterEach(() => {
-    rmSync(uploadDir, { recursive: true, force: true });
-  });
-
-  it('writes the bytes to disk and returns a public URL', async () => {
-    const { service, create, root } = setup(uploadDir);
+  it('stores the bytes in object storage and returns a public URL', async () => {
+    const { service, create, put } = setup();
 
     const result = await service.storeImage(OWNER, buildFile());
 
-    expect(result.url).toBe(`https://cdn.test/uploads/${result.key}`);
+    expect(result.url).toBe(`https://cdn.test/${result.key}`);
     expect(result.contentType).toBe('image/png');
     expect(result.size).toBe(PNG_BYTES.length);
-    expect(readFileSync(join(root, result.key))).toEqual(PNG_BYTES);
+    expect(put).toHaveBeenCalledWith(result.key, PNG_BYTES, 'image/png');
     expect(create).toHaveBeenCalledWith({
       data: {
         ownerUserId: OWNER,
@@ -69,8 +58,8 @@ describe('UploadsService.storeImage', () => {
     });
   });
 
-  it('names the file from the detected type, never the client name', async () => {
-    const { service, root } = setup(uploadDir);
+  it('names the object from the detected type, never the client name', async () => {
+    const { service, put } = setup();
 
     const result = await service.storeImage(
       OWNER,
@@ -78,24 +67,33 @@ describe('UploadsService.storeImage', () => {
     );
 
     expect(result.key).toMatch(/^[0-9a-f-]{36}\.jpg$/);
-    expect(existsSync(join(root, result.key))).toBe(true);
+    expect(put).toHaveBeenCalledWith(result.key, PNG_BYTES, 'image/jpeg');
   });
 
   it('strips a trailing slash from the public base URL', async () => {
-    const { service } = setup(uploadDir, 'https://cdn.test/uploads/');
+    const { service } = setup('https://cdn.test/');
 
     const result = await service.storeImage(OWNER, buildFile());
 
-    expect(result.url).toBe(`https://cdn.test/uploads/${result.key}`);
+    expect(result.url).toBe(`https://cdn.test/${result.key}`);
+  });
+
+  it('records nothing when the storage write fails', async () => {
+    const { service, create, put } = setup();
+    put.mockRejectedValue(new Error('R2 unavailable'));
+
+    await expect(service.storeImage(OWNER, buildFile())).rejects.toThrow('R2 unavailable');
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('rejects a missing file and non-image types', async () => {
-    const { service, create } = setup(uploadDir);
+    const { service, create, put } = setup();
 
     await expect(service.storeImage(OWNER, undefined)).rejects.toBeInstanceOf(BadRequestException);
     await expect(
       service.storeImage(OWNER, buildFile({ mimetype: 'application/pdf' })),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(put).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
 });

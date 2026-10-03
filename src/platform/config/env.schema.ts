@@ -22,11 +22,14 @@ export const envSchema = z.object({
   // and apex web domains). APP_WEB_URL is always allowed.
   CORS_ORIGINS: z.string().default(''),
 
-  // Image uploads (brand logos, campaign covers). Bytes are written under
-  // UPLOAD_DIR and served as static assets from PUBLIC_ASSET_BASE_URL — point
-  // that at a CDN/bucket origin in production and keep the two in step.
-  UPLOAD_DIR: z.string().default('./uploads'),
-  PUBLIC_ASSET_BASE_URL: z.string().url().default('http://localhost:3000/uploads'),
+  // Image uploads (brand logos, campaign covers) are stored in Cloudflare R2.
+  // PUBLIC_ASSET_BASE_URL is the bucket's public origin (a custom domain or the
+  // r2.dev URL); an object's URL is that base plus its key.
+  R2_ACCOUNT_ID: z.string().min(1),
+  R2_ACCESS_KEY_ID: z.string().min(1),
+  R2_SECRET_ACCESS_KEY: z.string().min(1),
+  R2_BUCKET: z.string().min(1),
+  PUBLIC_ASSET_BASE_URL: z.string().url(),
 
   // From-address for transactional email (verification codes, password resets).
   // Accepts a bare address or display-name form; the adapter splits the two.
