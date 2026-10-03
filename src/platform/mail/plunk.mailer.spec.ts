@@ -49,7 +49,7 @@ describe('PlunkMailer', () => {
   it('posts the verification code to Plunk with a bearer token', async () => {
     const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
 
-    await mailer.sendEmailVerificationCode('user@example.com', '123456');
+    await mailer.sendSignInCode('user@example.com', '123456');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe(SEND_URL);
@@ -59,18 +59,9 @@ describe('PlunkMailer', () => {
     });
     expect(sentBody(fetchMock)).toMatchObject({
       to: 'user@example.com',
-      subject: 'Your Zeyoo verification code',
+      subject: 'Your Zeyoo sign-in code',
     });
     expect(sentBody(fetchMock).body as string).toContain('123456');
-  });
-
-  it('sends a distinct subject for password resets', async () => {
-    const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
-
-    await mailer.sendPasswordResetCode('user@example.com', '654321');
-
-    expect(sentBody(fetchMock).subject).toBe('Reset your Zeyoo password');
-    expect(sentBody(fetchMock).body as string).toContain('654321');
   });
 
   it('splits a display-name MAIL_FROM into Plunk name and email fields', async () => {
@@ -78,7 +69,7 @@ describe('PlunkMailer', () => {
       configWith({ PLUNK_API_KEY: 'sk_test_key', MAIL_FROM: 'Zeyoo <no-reply@zeyoo.app>' }),
     );
 
-    await mailer.sendEmailVerificationCode('user@example.com', '123456');
+    await mailer.sendSignInCode('user@example.com', '123456');
 
     expect(sentBody(fetchMock).from).toEqual({ name: 'Zeyoo', email: 'no-reply@zeyoo.app' });
   });
@@ -88,7 +79,7 @@ describe('PlunkMailer', () => {
       configWith({ PLUNK_API_KEY: 'sk_test_key', MAIL_FROM: 'no-reply@zeyoo.app' }),
     );
 
-    await mailer.sendEmailVerificationCode('user@example.com', '123456');
+    await mailer.sendSignInCode('user@example.com', '123456');
 
     expect(sentBody(fetchMock).from).toEqual({ email: 'no-reply@zeyoo.app' });
   });
@@ -96,7 +87,7 @@ describe('PlunkMailer', () => {
   it('refuses to send without an API key, without calling Plunk', async () => {
     const mailer = new PlunkMailer(configWith());
 
-    await expect(mailer.sendEmailVerificationCode('user@example.com', '123456')).rejects.toThrow(
+    await expect(mailer.sendSignInCode('user@example.com', '123456')).rejects.toThrow(
       /not configured/i,
     );
     expect(fetchMock).not.toHaveBeenCalled();
@@ -110,7 +101,7 @@ describe('PlunkMailer', () => {
     });
     const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
 
-    await expect(mailer.sendEmailVerificationCode('user@example.com', '123456')).rejects.toThrow(
+    await expect(mailer.sendSignInCode('user@example.com', '123456')).rejects.toThrow(
       /try again shortly/i,
     );
   });
@@ -124,7 +115,7 @@ describe('PlunkMailer', () => {
     const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
 
     const failure = await mailer
-      .sendEmailVerificationCode('user@example.com', '123456')
+      .sendSignInCode('user@example.com', '123456')
       .then(() => null, (error: Error) => error);
 
     expect(failure?.message).toMatch(/try again shortly/i);
@@ -141,7 +132,7 @@ describe('PlunkMailer', () => {
     });
     const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
 
-    await expect(mailer.sendEmailVerificationCode('user@example.com', '123456')).rejects.toThrow(
+    await expect(mailer.sendSignInCode('user@example.com', '123456')).rejects.toThrow(
       /try again shortly/i,
     );
   });
@@ -166,7 +157,7 @@ describe('PlunkMailer', () => {
     // The logger is per-instance, so the spy has to wrap the instance under test.
     const log = jest.spyOn(mailer['logger'], 'error').mockImplementation(() => undefined);
 
-    await expect(mailer.sendEmailVerificationCode('user@example.com', '123456')).rejects.toThrow();
+    await expect(mailer.sendSignInCode('user@example.com', '123456')).rejects.toThrow();
 
     expect(log).toHaveBeenCalled();
     const [line] = log.mock.calls[0];

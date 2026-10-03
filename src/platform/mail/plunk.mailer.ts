@@ -30,33 +30,11 @@ export class PlunkMailer extends Mailer {
     super();
   }
 
-  async sendEmailVerificationCode(to: string, code: string): Promise<void> {
-    await this.send({
-      to,
-      subject: 'Your Zeyoo verification code',
-      body: codeBody(
-        'Confirm your email address to finish signing up to Zeyoo.',
-        code,
-      ),
-    });
-  }
-
-  async sendPasswordResetCode(to: string, code: string): Promise<void> {
-    await this.send({
-      to,
-      subject: 'Reset your Zeyoo password',
-      body: codeBody(
-        'Use this code to choose a new password for your Zeyoo account.',
-        code,
-      ),
-    });
-  }
-
-  async sendLoginCode(to: string, code: string): Promise<void> {
+  async sendSignInCode(to: string, code: string): Promise<void> {
     await this.send({
       to,
       subject: 'Your Zeyoo sign-in code',
-      body: codeBody('Use this code to sign in to your Zeyoo account.', code),
+      body: codeBody('Use this code to sign in to Zeyoo, or to finish creating your account.', code),
     });
   }
 

@@ -55,6 +55,22 @@ model User {
   @@map("iam_users")
 }
 
+// Hashed 6-digit codes for email sign-in. Keyed by (lower-cased) email rather than
+// by userId for the same reason as phone codes: the code is the first proof of
+// identity for an account that does not exist yet.
+model EmailVerificationCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+  @@map("iam_email_verification_codes")
+}
+
 // Hashed 6-digit codes for SMS delivery. Deliberately keyed by phone rather than
 // by userId, because a phone code is the first proof of identity for an account
 // that does not exist yet: the row must survive (and be consumed) before the

@@ -15,40 +15,16 @@
         ]
       }
     },
-    "/auth/register": {
+    "/auth/email/code": {
       "post": {
-        "operationId": "AuthController_register",
+        "operationId": "AuthController_requestEmailCode",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RegisterDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/auth/login": {
-      "post": {
-        "operationId": "AuthController_login",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginDto"
+                "$ref": "#/components/schemas/RequestEmailCodeDto"
               }
             }
           }
@@ -63,40 +39,16 @@
         ]
       }
     },
-    "/auth/login/code": {
+    "/auth/email/code/verify": {
       "post": {
-        "operationId": "AuthController_requestLoginCode",
+        "operationId": "AuthController_verifyEmailCode",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RequestLoginCodeDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/auth/login/code/verify": {
-      "post": {
-        "operationId": "AuthController_verifyLoginCode",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyLoginCodeDto"
+                "$ref": "#/components/schemas/VerifyEmailCodeDto"
               }
             }
           }
@@ -159,102 +111,6 @@
         ]
       }
     },
-    "/auth/email/verify": {
-      "post": {
-        "operationId": "AuthController_verifyEmail",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyEmailDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/auth/email/resend": {
-      "post": {
-        "operationId": "AuthController_resendEmailVerification",
-        "parameters": [],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/auth/password/forgot": {
-      "post": {
-        "operationId": "AuthController_forgotPassword",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ForgotPasswordDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/auth/password/reset": {
-      "post": {
-        "operationId": "AuthController_resetPassword",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResetPasswordDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "auth"
-        ]
-      }
-    },
     "/auth/phone/code": {
       "post": {
         "operationId": "AuthController_requestPhoneCode",
@@ -270,7 +126,7 @@
           }
         },
         "responses": {
-          "204": {
+          "200": {
             "description": ""
           }
         },
@@ -3007,19 +2863,11 @@
       }
     },
     "schemas": {
-      "RegisterDto": {
+      "RequestEmailCodeDto": {
         "type": "object",
         "properties": {}
       },
-      "LoginDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "RequestLoginCodeDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "VerifyLoginCodeDto": {
+      "VerifyEmailCodeDto": {
         "type": "object",
         "properties": {}
       },
@@ -3028,18 +2876,6 @@
         "properties": {}
       },
       "LogoutDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "VerifyEmailDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "ForgotPasswordDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "ResetPasswordDto": {
         "type": "object",
         "properties": {}
       },

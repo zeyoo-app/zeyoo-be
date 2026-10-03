@@ -7,24 +7,19 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { OAuthProvider, UserType } from '@prisma/client';
-import { CurrentUser, Principal, Public } from '@platform/auth';
+import { Public } from '@platform/auth';
 import {
-  ForgotPasswordDto,
-  LoginDto,
   LogoutDto,
   OAuthSignInDto,
   RefreshDto,
-  RegisterDto,
-  RequestLoginCodeDto,
+  RequestEmailCodeDto,
   RequestPhoneCodeDto,
-  ResetPasswordDto,
-  VerifyEmailDto,
-  VerifyLoginCodeDto,
+  VerifyEmailCodeDto,
   VerifyPhoneCodeDto,
 } from '../dto/auth.dto';
-import { AuthService } from '../services/auth.service';
+import { AuthService, SignInResult } from '../services/auth.service';
 import { OAuthService } from '../services/oauth.service';
 import { AuthTokens } from '../services/token.service';
 
@@ -32,6 +27,12 @@ const OAUTH_PROVIDERS: Record<string, OAuthProvider> = {
   google: 'GOOGLE',
   apple: 'APPLE',
 };
+
+/** "someone@gmail.com" -> "s***@gmail.com", for confirming where a code went. */
+function maskEmail(email: string): string {
+  const at = email.indexOf('@');
+  return `${email.slice(0, 1)}***${email.slice(at)}`;
+}
 
 @ApiTags('auth')
 @Controller('auth')
@@ -41,33 +42,25 @@ export class AuthController {
     private readonly oauth: OAuthService,
   ) {}
 
-  @Public()
-  @Post('register')
-  register(@Body() dto: RegisterDto): Promise<AuthTokens> {
-    return this.auth.register(dto);
-  }
-
+  // Emails a 6-digit code. Sign-in and sign-up share this endpoint because the
+  // address alone cannot say which one it is, and answering differently would turn
+  // it into an account-enumeration oracle. Nothing is created until the code is
+  // verified.
   @Public()
   @HttpCode(HttpStatus.OK)
-  @Post('login')
-  login(@Body() dto: LoginDto): Promise<AuthTokens> {
-    return this.auth.login(dto);
+  @Post('email/code')
+  async requestEmailCode(@Body() dto: RequestEmailCodeDto): Promise<{ message: string }> {
+    await this.auth.requestEmailCode(dto.email);
+    return { message: `We sent a 6-digit code to ${maskEmail(dto.email)}.` };
   }
 
-  // Emails a 6-digit sign-in code. Always 204 — whether or not the address has an
-  // account — so it cannot be used to discover who is registered.
-  @Public()
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Post('login/code')
-  requestLoginCode(@Body() dto: RequestLoginCodeDto): Promise<void> {
-    return this.auth.requestLoginCode(dto.email);
-  }
-
+  // Exchanges an emailed code for a session, creating the account when the
+  // address is new. `isNewUser` tells the client whether to start onboarding.
   @Public()
   @HttpCode(HttpStatus.OK)
-  @Post('login/code/verify')
-  verifyLoginCode(@Body() dto: VerifyLoginCodeDto): Promise<AuthTokens> {
-    return this.auth.verifyLoginCode(dto.email, dto.code);
+  @Post('email/code/verify')
+  verifyEmailCode(@Body() dto: VerifyEmailCodeDto): Promise<SignInResult> {
+    return this.auth.verifyEmailCode(dto.email, dto.code, dto.userType as UserType | undefined);
   }
 
   @Public()
@@ -84,50 +77,21 @@ export class AuthController {
     return this.auth.logout(dto.refreshToken);
   }
 
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Post('email/verify')
-  verifyEmail(@CurrentUser() principal: Principal, @Body() dto: VerifyEmailDto): Promise<void> {
-    return this.auth.verifyEmail(principal.userId, dto.code);
-  }
-
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Post('email/resend')
-  resendEmailVerification(@CurrentUser() principal: Principal): Promise<void> {
-    return this.auth.resendEmailVerification(principal.userId);
-  }
-
+  // Texts a 6-digit code to a phone number. Same shape as the email endpoint.
   @Public()
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Post('password/forgot')
-  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
-    return this.auth.requestPasswordReset(dto.email);
-  }
-
-  @Public()
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Post('password/reset')
-  resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
-    return this.auth.resetPassword(dto.email, dto.code, dto.newPassword);
-  }
-
-  // Texts a 6-digit code to a phone number. Sign-in and sign-up share this
-  // endpoint because the number alone cannot say which one it is, and answering
-  // differently would turn it into an account-enumeration oracle.
-  @Public()
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @Post('phone/code')
-  requestPhoneCode(@Body() dto: RequestPhoneCodeDto): Promise<void> {
-    return this.auth.requestPhoneCode(dto.phone);
+  async requestPhoneCode(@Body() dto: RequestPhoneCodeDto): Promise<{ message: string }> {
+    await this.auth.requestPhoneCode(dto.phone);
+    return { message: 'We sent a 6-digit code by text message.' };
   }
 
   // Exchanges a texted code for a session, creating the account when the number
-  // is new. Returns the same token shape as /auth/login and /auth/register.
+  // is new. Returns the same shape as the email endpoint.
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('phone/code/verify')
-  verifyPhoneCode(@Body() dto: VerifyPhoneCodeDto): Promise<AuthTokens> {
+  verifyPhoneCode(@Body() dto: VerifyPhoneCodeDto): Promise<SignInResult> {
     return this.auth.verifyPhoneCode(dto.phone, dto.code, dto.userType as UserType | undefined);
   }
 

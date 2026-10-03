@@ -14,10 +14,10 @@ import { rmSync } from 'node:fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { ZodValidationPipe } from 'nestjs-zod';
-import * as argon2 from 'argon2';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { UploadsService } from '../../src/modules/media/media.public';
+import { Mailer } from '../../src/platform/mail';
 import { PrismaService } from '../../src/platform/database/prisma.service';
 import { AllExceptionsFilter } from '../../src/platform/http/all-exceptions.filter';
 import { IMAGE_MAX_BYTES } from '../../src/platform/http/image-upload.constants';
@@ -41,6 +41,14 @@ const fakeBillingGateway = {
   createSubscriptionCheckout: jest.fn().mockResolvedValue({ url: 'https://checkout.test' }),
   parseWebhookEvent: jest.fn().mockReturnValue({ kind: 'IGNORED' }),
 };
+/** Captures the emailed sign-in code so a test can complete the passwordless flow. */
+const sentCodes = new Map<string, string>();
+const fakeMailer = {
+  sendSignInCode: jest.fn().mockImplementation((to: string, code: string) => {
+    sentCodes.set(to, code);
+    return Promise.resolve();
+  }),
+};
 const fakeAiProvider = { generate: jest.fn().mockResolvedValue('Draft output.') };
 
 describe('Zeyoo API (e2e)', () => {
@@ -49,20 +57,30 @@ describe('Zeyoo API (e2e)', () => {
   let http: () => request.SuperTest<request.Test>;
 
   const runId = Date.now();
-  const brand = { email: `brand-${runId}@test.dev`, password: 'password123', token: '' };
+  const brand = { email: `brand-${runId}@test.dev`, token: '' };
   const creator = {
     email: `creator-${runId}@test.dev`,
-    password: 'password123',
     token: '',
     userId: '',
   };
-  const adminUser = { email: `admin-${runId}@test.dev`, password: 'password123', token: '' };
+  const adminUser = { email: `admin-${runId}@test.dev`, token: '' };
 
   let organizationId: string;
   let campaignId: string;
   let applicationId: string;
   let submissionId: string;
   let disputeId: string;
+
+  /** Runs the real email-code flow: request a code, read it from the fake mailer, verify it. */
+  const signInWithEmail = async (email: string, userType?: 'BRAND_USER' | 'CREATOR') => {
+    const requested = await http().post('/v1/auth/email/code').send({ email });
+    expect(requested.status).toBe(200);
+    const verified = await http()
+      .post('/v1/auth/email/code/verify')
+      .send({ email, code: sentCodes.get(email), userType });
+    expect(verified.status).toBe(200);
+    return verified.body as { accessToken: string; isNewUser: boolean };
+  };
 
   const auth = (token: string): Record<string, string> => ({ Authorization: `Bearer ${token}` });
 
@@ -72,6 +90,8 @@ describe('Zeyoo API (e2e)', () => {
       .useValue(fakePaymentGateway)
       .overrideProvider('BillingGatewayPort')
       .useValue(fakeBillingGateway)
+      .overrideProvider(Mailer)
+      .useValue(fakeMailer)
       .overrideProvider('AiProviderPort')
       .useValue(fakeAiProvider)
       .compile();
@@ -93,7 +113,6 @@ describe('Zeyoo API (e2e)', () => {
         type: 'ADMIN',
         status: 'ACTIVE',
         emailVerifiedAt: new Date(),
-        credential: { create: { passwordHash: await argon2.hash(adminUser.password) } },
       },
     });
   });
@@ -109,24 +128,18 @@ describe('Zeyoo API (e2e)', () => {
     expect(response.body).toMatchObject({ status: 'ok', database: 'up' });
   });
 
-  it('registers and logs in a brand, creator, and admin', async () => {
-    const brandRes = await http()
-      .post('/v1/auth/register')
-      .send({ email: brand.email, password: brand.password, userType: 'BRAND_USER' });
-    expect(brandRes.status).toBe(201);
-    brand.token = brandRes.body.accessToken;
+  it('signs up a brand and creator and signs in an admin by emailed code', async () => {
+    const brandRes = await signInWithEmail(brand.email, 'BRAND_USER');
+    expect(brandRes.isNewUser).toBe(true);
+    brand.token = brandRes.accessToken;
 
-    const creatorRes = await http()
-      .post('/v1/auth/register')
-      .send({ email: creator.email, password: creator.password, userType: 'CREATOR' });
-    expect(creatorRes.status).toBe(201);
-    creator.token = creatorRes.body.accessToken;
+    const creatorRes = await signInWithEmail(creator.email, 'CREATOR');
+    expect(creatorRes.isNewUser).toBe(true);
+    creator.token = creatorRes.accessToken;
 
-    const adminRes = await http()
-      .post('/v1/auth/login')
-      .send({ email: adminUser.email, password: adminUser.password });
-    expect(adminRes.status).toBe(200);
-    adminUser.token = adminRes.body.accessToken;
+    const adminRes = await signInWithEmail(adminUser.email);
+    expect(adminRes.isNewUser).toBe(false);
+    adminUser.token = adminRes.accessToken;
 
     const me = await http().get('/v1/me').set(auth(creator.token));
     expect(me.status).toBe(200);

@@ -11,15 +11,7 @@ import { Mailer } from './mailer';
 export class LogMailer extends Mailer {
   private readonly logger = new Logger('Mailer');
 
-  async sendEmailVerificationCode(to: string, code: string): Promise<void> {
-    this.logger.log(`[email-verification] to=${to} code=${code}`);
-  }
-
-  async sendPasswordResetCode(to: string, code: string): Promise<void> {
-    this.logger.log(`[password-reset] to=${to} code=${code}`);
-  }
-
-  async sendLoginCode(to: string, code: string): Promise<void> {
-    this.logger.log(`[login] to=${to} code=${code}`);
+  async sendSignInCode(to: string, code: string): Promise<void> {
+    this.logger.log(`[sign-in] to=${to} code=${code}`);
   }
 }

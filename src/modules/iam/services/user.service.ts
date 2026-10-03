@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Credential, OAuthProvider, User, UserStatus, UserType } from '@prisma/client';
+import { OAuthProvider, User, UserStatus, UserType } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 
-interface CreateUserWithPassword {
+interface CreateEmailUser {
   email: string;
-  passwordHash: string;
   type: UserType;
 }
 
@@ -45,25 +44,18 @@ export class UserService {
     return this.prisma.user.update({ where: { id: userId }, data: { status } });
   }
 
-  findByEmailWithCredential(
-    email: string,
-  ): Promise<(User & { credential: Credential | null }) | null> {
-    return this.prisma.user.findUnique({
-      where: { email },
-      include: { credential: true },
-    });
-  }
-
-  // New password accounts start PENDING and are activated by email verification
-  // (see AuthService.verifyEmail). Social sign-in activates on first login when
-  // the provider asserts a verified email.
-  createWithPassword(input: CreateUserWithPassword): Promise<User> {
+  /**
+   * Creates an account from a verified email address. There is no credential:
+   * possession of the inbox is the credential, and the emailed code that proved it
+   * is consumed before this runs, so the account is born ACTIVE.
+   */
+  createWithEmail(input: CreateEmailUser): Promise<User> {
     return this.prisma.user.create({
       data: {
         email: input.email,
         type: input.type,
-        status: 'PENDING',
-        credential: { create: { passwordHash: input.passwordHash } },
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(),
       },
     });
   }
@@ -97,15 +89,6 @@ export class UserService {
     return this.prisma.user.update({
       where: { id: userId },
       data: { phone, phoneVerifiedAt: new Date() },
-    });
-  }
-
-  /** Sets (or replaces) the account's password credential. */
-  async setPassword(userId: string, passwordHash: string): Promise<void> {
-    await this.prisma.credential.upsert({
-      where: { userId },
-      create: { userId, passwordHash },
-      update: { passwordHash },
     });
   }
 

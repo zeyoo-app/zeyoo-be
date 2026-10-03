@@ -26,6 +26,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = context.getRequest<Request>();
     const response = context.getResponse<Response>();
 
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      // The client only sees a generic message; the code (e.g. P2021 missing table,
+      // P2022 missing column) is what identifies a schema/migration mismatch.
+      this.logger.error(
+        `${request.method} ${request.url} Prisma ${exception.code} meta=${JSON.stringify(exception.meta ?? {})}`,
+      );
+    }
+
     const { status, message } = this.resolve(exception);
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(`${request.method} ${request.url}`, exception as Error);

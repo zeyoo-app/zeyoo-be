@@ -2,23 +2,13 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { isDeliverablePhone, normalizePhone } from '../phone-number';
 
-const PASSWORD_MIN_LENGTH = 8;
-const PASSWORD_MAX_LENGTH = 128;
-
-export const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
-  userType: z.enum(['BRAND_USER', 'CREATOR']),
-});
-
-export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
-export const requestLoginCodeSchema = z.object({
-  email: z.string().email(),
-});
+// Lower-cased and trimmed so one address always maps to one account and one code row.
+const email = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email()
+  .max(254);
 
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
@@ -27,23 +17,14 @@ export const refreshSchema = z.object({
 const CODE_LENGTH = 6;
 const verificationCode = z.string().length(CODE_LENGTH).regex(/^\d+$/, 'Code must be 6 digits.');
 
-export const verifyEmailSchema = z.object({
-  code: verificationCode,
-});
+export const requestEmailCodeSchema = z.object({ email });
 
-export const verifyLoginCodeSchema = z.object({
-  email: z.string().email(),
+export const verifyEmailCodeSchema = z.object({
+  email,
   code: verificationCode,
-});
-
-export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
-});
-
-export const resetPasswordSchema = z.object({
-  email: z.string().email(),
-  code: verificationCode,
-  newPassword: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+  // Only consulted when the address has no account yet; a returning user's stored
+  // role always wins.
+  userType: z.enum(['BRAND_USER', 'CREATOR']).optional(),
 });
 
 export const oauthSignInSchema = z.object({
@@ -76,15 +57,10 @@ export const verifyPhoneCodeSchema = z.object({
   userType: z.enum(['BRAND_USER', 'CREATOR']).optional(),
 });
 
-export class RegisterDto extends createZodDto(registerSchema) {}
-export class LoginDto extends createZodDto(loginSchema) {}
-export class RequestLoginCodeDto extends createZodDto(requestLoginCodeSchema) {}
-export class VerifyLoginCodeDto extends createZodDto(verifyLoginCodeSchema) {}
 export class RefreshDto extends createZodDto(refreshSchema) {}
 export class LogoutDto extends createZodDto(refreshSchema) {}
-export class VerifyEmailDto extends createZodDto(verifyEmailSchema) {}
-export class ForgotPasswordDto extends createZodDto(forgotPasswordSchema) {}
-export class ResetPasswordDto extends createZodDto(resetPasswordSchema) {}
+export class RequestEmailCodeDto extends createZodDto(requestEmailCodeSchema) {}
+export class VerifyEmailCodeDto extends createZodDto(verifyEmailCodeSchema) {}
 export class OAuthSignInDto extends createZodDto(oauthSignInSchema) {}
 export class RequestPhoneCodeDto extends createZodDto(requestPhoneCodeSchema) {}
 export class VerifyPhoneCodeDto extends createZodDto(verifyPhoneCodeSchema) {}
