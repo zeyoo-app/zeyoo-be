@@ -28,6 +28,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed": "ts-node prisma/seed.ts",
+    "seed:categories": "ts-node prisma/seed-categories.ts",
     "openapi:export": "ts-node -r tsconfig-paths/register scripts/export-openapi.ts",
     "sdk:generate": "pnpm --filter @zeyoo-app/api-client generate",
     "sdk:build": "pnpm --filter @zeyoo-app/api-client build"

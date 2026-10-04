@@ -16,6 +16,12 @@ export const envSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  // Temporary launch switch: records funding as succeeded and runs the normal
+  // fulfillment path without contacting Stripe. Keep false once Stripe is live.
+  PAYMENTS_BYPASS_STRIPE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 
   APP_WEB_URL: z.string().url().default('http://localhost:3000'),
   // Extra browser origins allowed to call the API (comma-separated, e.g. the www

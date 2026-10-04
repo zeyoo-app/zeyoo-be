@@ -1,5 +1,8 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@platform/database/prisma.service';
+import { Env } from '@platform/config/env.schema';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { Money } from '../domain/money';
@@ -11,6 +14,7 @@ export interface FundingCreated {
   clientSecret: string;
   amountMinor: number;
   currencyCode: string;
+  status: 'PENDING' | 'SUCCEEDED';
 }
 
 @Injectable()
@@ -20,6 +24,7 @@ export class FundingService {
     private readonly campaigns: CampaignService,
     private readonly organizations: OrganizationService,
     private readonly ledger: LedgerService,
+    private readonly config: ConfigService<Env, true>,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGatewayPort,
   ) {}
 
@@ -34,11 +39,14 @@ export class FundingService {
     const campaign = await this.campaigns.requireCampaign(campaignId);
     await this.organizations.assertMember(campaign.organizationId, requesterId);
 
-    const intent = await this.gateway.createFundingIntent({
-      amountMinor,
-      currencyCode: campaign.currencyCode,
-      metadata: { campaignId },
-    });
+    const bypassStripe = this.config.get('PAYMENTS_BYPASS_STRIPE', { infer: true });
+    const intent = bypassStripe
+      ? { intentId: `bypass_${randomUUID()}`, clientSecret: 'bypass_funding_succeeded' }
+      : await this.gateway.createFundingIntent({
+          amountMinor,
+          currencyCode: campaign.currencyCode,
+          metadata: { campaignId },
+        });
     const funding = await this.prisma.campaignFunding.create({
       data: {
         campaignId,
@@ -49,11 +57,17 @@ export class FundingService {
       },
       select: { id: true },
     });
+    if (bypassStripe) {
+      // Reuse the same idempotent fulfillment path invoked by Stripe's success
+      // webhook so the ledger and wallet behave exactly as they will live.
+      await this.markSucceeded(intent.intentId);
+    }
     return {
       fundingId: funding.id,
       clientSecret: intent.clientSecret,
       amountMinor,
       currencyCode: campaign.currencyCode,
+      status: bypassStripe ? 'SUCCEEDED' : 'PENDING',
     };
   }
 
