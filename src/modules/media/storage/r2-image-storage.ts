@@ -19,6 +19,10 @@ export class R2ImageStorage extends ImageStorage {
     this.bucket = config.get('R2_BUCKET', { infer: true });
     this.client = new S3Client({
       region: 'auto',
+      // Newer SDKs attach extra checksum headers by default; R2 only needs them when
+      // an operation requires one, and skipping them avoids compatibility errors.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
       endpoint: `https://${config.get('R2_ACCOUNT_ID', { infer: true })}.r2.cloudflarestorage.com`,
       credentials: {
         accessKeyId: config.get('R2_ACCESS_KEY_ID', { infer: true }),

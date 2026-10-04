@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreatorProfile, SocialAccount, SocialPlatform } from '@prisma/client';
+import { CreatorProfile, Prisma, SocialAccount, SocialPlatform } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CreateCreatorProfileDto, UpdateCreatorProfileDto } from '../dto/creator-profile.dto';
 
@@ -19,7 +19,9 @@ export class CreatorProfileService {
   // The caller already holds CreatorProfileManage, so the account is a creator.
   async create(userId: string, dto: CreateCreatorProfileDto): Promise<CreatorProfile> {
     await this.assertNoProfile(userId);
-    return this.prisma.creatorProfile.create({ data: { ...dto, userId } });
+    return this.withUsernameConflict(() =>
+      this.prisma.creatorProfile.create({ data: { ...dto, userId } }),
+    );
   }
 
   getOwn(userId: string): Promise<CreatorProfile> {
@@ -28,7 +30,9 @@ export class CreatorProfileService {
 
   async update(userId: string, dto: UpdateCreatorProfileDto): Promise<CreatorProfile> {
     const profile = await this.findByUserIdOrThrow(userId);
-    return this.prisma.creatorProfile.update({ where: { id: profile.id }, data: dto });
+    return this.withUsernameConflict(() =>
+      this.prisma.creatorProfile.update({ where: { id: profile.id }, data: dto }),
+    );
   }
 
   async requestVerification(userId: string): Promise<CreatorProfile> {
@@ -62,6 +66,18 @@ export class CreatorProfileService {
       include: { socialAccounts: CONNECTED_ACCOUNTS },
       orderBy: { displayName: 'asc' },
     });
+  }
+
+  /** Usernames are unique; report a clash in words instead of a generic "already exists". */
+  private async withUsernameConflict<T>(write: () => Promise<T>): Promise<T> {
+    try {
+      return await write();
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('That username is already taken.');
+      }
+      throw error;
+    }
   }
 
   private async assertNoProfile(userId: string): Promise<void> {
