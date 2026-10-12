@@ -2,6 +2,12 @@
 // Owns encrypted OAuth tokens for connected accounts and the time-series of
 // metric snapshots that power dashboards and (later) fraud/predictive models.
 
+// Where a snapshot came from: a brand member typing a count in, or a platform API read.
+enum MetricSource {
+  MANUAL
+  PLATFORM_API
+}
+
 model SocialOAuthToken {
   id                    String         @id @default(uuid()) @db.Uuid
   creatorUserId         String         @db.Uuid
@@ -9,6 +15,8 @@ model SocialOAuthToken {
   accessTokenEncrypted  String
   refreshTokenEncrypted String?
   expiresAt             DateTime?
+  // The platform's id for the connected account (TikTok open_id, Instagram user id).
+  externalAccountId     String?
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
@@ -21,6 +29,9 @@ model MetricSnapshot {
   campaignId    String         @db.Uuid
   creatorUserId String         @db.Uuid
   platform      SocialPlatform
+  source        MetricSource   @default(MANUAL)
+  // The submission whose post was measured; null for snapshots recorded before tracking.
+  submissionId  String?        @db.Uuid
   views         Int
   likes         Int
   comments      Int
@@ -29,5 +40,6 @@ model MetricSnapshot {
 
   @@index([campaignId])
   @@index([creatorUserId])
+  @@index([submissionId])
   @@map("social_metric_snapshots")
 }

@@ -1,6 +1,17 @@
 import { Module } from '@nestjs/common';
 import { CampaignsModule } from '@modules/campaigns/campaigns.public';
+import { CreatorsModule } from '@modules/creators/creators.public';
+import { FraudModule } from '@modules/fraud/fraud.public';
 import { IamModule } from '@modules/iam/iam.public';
+import { NotificationsModule } from '@modules/notifications/notifications.public';
+import { SocialModule } from '@modules/social/social.public';
+import { SubmissionsModule } from '@modules/submissions/submissions.public';
+import { EarningsSettlementService } from './application/earnings-settlement.service';
+import { RefundService } from './application/refund.service';
+import { ViewSyncScheduler } from './application/view-sync.scheduler';
+import { ViewTrackingService } from './application/view-tracking.service';
+import { EarningsController } from './controllers/earnings.controller';
+import { ViewTrackingController } from './controllers/view-tracking.controller';
 import { FundingService } from './application/funding.service';
 import { LedgerService } from './application/ledger.service';
 import { WalletService } from './application/wallet.service';
@@ -16,9 +27,19 @@ import { PrismaLedgerRepository } from './infrastructure/prisma-ledger.repositor
 import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
 
 @Module({
-  imports: [CampaignsModule, IamModule],
+  imports: [
+    CampaignsModule,
+    CreatorsModule,
+    FraudModule,
+    IamModule,
+    SocialModule,
+    SubmissionsModule,
+    NotificationsModule,
+  ],
   controllers: [
     FundingController,
+    EarningsController,
+    ViewTrackingController,
     WithdrawalsController,
     WalletController,
     AdminPayoutsController,
@@ -27,11 +48,22 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
   providers: [
     LedgerService,
     FundingService,
+    EarningsSettlementService,
+    RefundService,
+    ViewTrackingService,
+    ViewSyncScheduler,
     WithdrawalService,
     WalletService,
     { provide: LEDGER_REPOSITORY, useClass: PrismaLedgerRepository },
     { provide: PAYMENT_GATEWAY, useClass: StripePaymentGateway },
   ],
-  exports: [LedgerService, FundingService, WalletService],
+  exports: [
+    LedgerService,
+    FundingService,
+    WalletService,
+    WithdrawalService,
+    EarningsSettlementService,
+    RefundService,
+  ],
 })
 export class PaymentsModule {}

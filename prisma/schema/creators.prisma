@@ -27,6 +27,9 @@ model CreatorProfile {
   country     String? // ISO 3166-1 alpha-2, uppercase
 
   verificationStatus VerificationStatus @default(UNVERIFIED)
+  // Staff's explanation when a request is rejected, shown back to the creator.
+  verificationNote       String?
+  verificationReviewedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -43,6 +46,8 @@ model SocialAccount {
   handle           String
   platformAccountId String?
   status           SocialAccountStatus @default(CONNECTED)
+  // Set only when the creator proved ownership by signing in to the platform.
+  verifiedAt       DateTime?
   connectedAt      DateTime            @default(now())
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt

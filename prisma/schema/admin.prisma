@@ -1,0 +1,16 @@
+// Admin module.
+// Records every state-changing action a staff account takes in the admin console.
+
+model AdminAuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  adminUserId String   @db.Uuid
+  method      String
+  route       String
+  params      Json?
+  body        Json?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([adminUserId])
+  @@map("admin_audit_log")
+}

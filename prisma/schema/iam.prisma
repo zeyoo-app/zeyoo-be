@@ -11,6 +11,9 @@ enum UserStatus {
   PENDING
   ACTIVE
   SUSPENDED
+  // The person deleted their account: identifiers and personal data are erased and
+  // the row remains only so ledger and review history keep a valid owner.
+  DELETED
 }
 
 enum OrgRole {
@@ -21,14 +24,6 @@ enum OrgRole {
 enum OAuthProvider {
   GOOGLE
   APPLE
-}
-
-// A short-lived, single-use code delivered out-of-band (email) to prove control
-// of an address (email verification) or authorize a credential reset.
-enum VerificationPurpose {
-  EMAIL_VERIFICATION
-  PASSWORD_RESET
-  LOGIN
 }
 
 model User {
@@ -43,13 +38,12 @@ model User {
   status        UserStatus @default(PENDING)
   emailVerifiedAt   DateTime?
   phoneVerifiedAt   DateTime?
+  deletedAt         DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  credential        Credential?
   refreshTokens     RefreshToken[]
   oauthIdentities   OAuthIdentity[]
-  verificationCodes VerificationCode[]
   memberships       Membership[]
 
   @@map("iam_users")
@@ -86,39 +80,6 @@ model PhoneVerificationCode {
 
   @@index([phone])
   @@map("iam_phone_verification_codes")
-}
-
-// Hashed 6-digit codes for email verification and password reset. Only the hash
-// is stored; codes are single-use (consumedAt) and attempt-limited to blunt
-// brute force against the low-entropy 6-digit space.
-model VerificationCode {
-  id         String              @id @default(uuid()) @db.Uuid
-  userId     String              @db.Uuid
-  purpose    VerificationPurpose
-  codeHash   String
-  expiresAt  DateTime
-  consumedAt DateTime?
-  attempts   Int                 @default(0)
-  createdAt  DateTime            @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, purpose])
-  @@map("iam_verification_codes")
-}
-
-// Password material is kept separate from User so that social-only or SSO-only
-// accounts simply have no credential row.
-model Credential {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @unique @db.Uuid
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("iam_credentials")
 }
 
 // One row per issued refresh token. Rotation stores a hash only; a reused

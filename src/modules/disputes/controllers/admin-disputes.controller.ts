@@ -1,10 +1,21 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Dispute } from '@prisma/client';
+import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
-import { DisputeService } from '../services/dispute.service';
+import { DisputeDecisionDto } from '../dto/dispute.dto';
+import { DisputeService, DisputeView } from '../services/dispute.service';
 
-@ApiTags('disputes')
+@ApiTags('admin')
 @ApiBearerAuth()
 @RequirePermission(Permission.AdminAccess)
 @Controller('admin/disputes')
@@ -12,25 +23,29 @@ export class AdminDisputesController {
   constructor(private readonly disputes: DisputeService) {}
 
   @Get()
-  listOpen(): Promise<Dispute[]> {
-    return this.disputes.listOpen();
+  list(
+    @CurrentUser() principal: Principal,
+    @Query('scope') scope?: string,
+  ): Promise<DisputeView[]> {
+    return this.disputes.listForAdmin(scope === 'closed' ? 'closed' : 'active', principal.userId);
   }
 
   @HttpCode(HttpStatus.OK)
   @Post(':disputeId/review')
-  review(@Param('disputeId', ParseUUIDPipe) disputeId: string): Promise<Dispute> {
-    return this.disputes.review(disputeId);
+  review(
+    @CurrentUser() principal: Principal,
+    @Param('disputeId', ParseUUIDPipe) disputeId: string,
+  ): Promise<DisputeView> {
+    return this.disputes.markUnderReview(disputeId, principal.userId);
   }
 
   @HttpCode(HttpStatus.OK)
-  @Post(':disputeId/resolve')
-  resolve(@Param('disputeId', ParseUUIDPipe) disputeId: string): Promise<Dispute> {
-    return this.disputes.resolve(disputeId);
-  }
-
-  @HttpCode(HttpStatus.OK)
-  @Post(':disputeId/reject')
-  reject(@Param('disputeId', ParseUUIDPipe) disputeId: string): Promise<Dispute> {
-    return this.disputes.reject(disputeId);
+  @Post(':disputeId/decision')
+  decide(
+    @CurrentUser() principal: Principal,
+    @Param('disputeId', ParseUUIDPipe) disputeId: string,
+    @Body() dto: DisputeDecisionDto,
+  ): Promise<DisputeView> {
+    return this.disputes.decide(disputeId, principal.userId, dto);
   }
 }

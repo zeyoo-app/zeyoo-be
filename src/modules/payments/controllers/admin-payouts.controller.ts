@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  ParseUUIDPipe,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Withdrawal } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
@@ -21,11 +12,6 @@ import { HoldWithdrawalDto } from '../dto/payments.dto';
 @Controller('admin/withdrawals')
 export class AdminPayoutsController {
   constructor(private readonly withdrawals: WithdrawalService) {}
-
-  @Get()
-  listOpen(): Promise<Withdrawal[]> {
-    return this.withdrawals.listOpen();
-  }
 
   @HttpCode(HttpStatus.OK)
   @Post(':withdrawalId/hold')

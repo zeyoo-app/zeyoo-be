@@ -16,7 +16,9 @@ export class StripeBillingGateway implements BillingGatewayPort {
 
   constructor(config: ConfigService<Env, true>) {
     this.stripe = new Stripe(config.get('STRIPE_SECRET_KEY', { infer: true }));
-    this.webhookSecret = config.get('STRIPE_WEBHOOK_SECRET', { infer: true });
+    this.webhookSecret =
+      config.get('STRIPE_BILLING_WEBHOOK_SECRET', { infer: true }) ??
+      config.get('STRIPE_WEBHOOK_SECRET', { infer: true });
   }
 
   async createSubscriptionCheckout(input: SubscriptionCheckoutInput): Promise<{ url: string }> {

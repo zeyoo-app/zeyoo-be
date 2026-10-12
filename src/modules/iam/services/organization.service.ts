@@ -10,7 +10,10 @@ export class OrganizationService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Creating an organization makes the creator its first OWNER, atomically.
-  create(ownerUserId: string, input: { name: string; website?: string; industry?: string; logoUrl?: string }): Promise<Organization> {
+  create(
+    ownerUserId: string,
+    input: { name: string; website?: string; industry?: string; logoUrl?: string },
+  ): Promise<Organization> {
     return this.prisma.organization.create({
       data: {
         ...input,
@@ -42,7 +45,11 @@ export class OrganizationService {
     return organization;
   }
 
-  async update(organizationId: string, userId: string, input: { name?: string; website?: string; industry?: string; logoUrl?: string }): Promise<Organization> {
+  async update(
+    organizationId: string,
+    userId: string,
+    input: { name?: string; website?: string; industry?: string; logoUrl?: string },
+  ): Promise<Organization> {
     await this.assertMember(organizationId, userId);
     return this.prisma.organization.update({ where: { id: organizationId }, data: input });
   }

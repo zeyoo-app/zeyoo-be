@@ -4,18 +4,61 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Dispute, DisputeEvent, DisputeStatus } from '@prisma/client';
+import { Dispute, DisputeEvent, DisputeStatus, DisputeSubjectType } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
-import { DisputeMessageDto, OpenDisputeDto } from '../dto/dispute.dto';
+import { CampaignService } from '@modules/campaigns/campaigns.public';
+import { CreatorProfileService } from '@modules/creators/creators.public';
+import { FraudService } from '@modules/fraud/fraud.public';
+import { OrganizationService, UserService } from '@modules/iam/iam.public';
+import { NotificationService } from '@modules/notifications/notifications.public';
+import { WithdrawalService } from '@modules/payments/payments.public';
+import { ReviewService, SubmissionService } from '@modules/submissions/submissions.public';
+import { DisputeDecisionDto, DisputeMessageDto, OpenDisputeDto } from '../dto/dispute.dto';
 
-export type DisputeWithEvents = Dispute & { events: DisputeEvent[] };
+const ACTIVE_STATUSES: DisputeStatus[] = ['OPEN', 'UNDER_REVIEW'];
+
+export type EventAuthor = 'YOU' | 'SUPPORT' | 'OTHER';
+
+export interface DisputeEventView {
+  id: string;
+  message: string;
+  createdAt: Date;
+  author: EventAuthor;
+}
+
+export interface DisputeView {
+  id: string;
+  subjectType: DisputeSubjectType;
+  subjectId: string | null;
+  subjectTitle: string;
+  reason: string;
+  status: DisputeStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  openedByUserId: string;
+  openedByName: string;
+  events: DisputeEventView[];
+}
 
 @Injectable()
 export class DisputeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly submissions: SubmissionService,
+    private readonly reviews: ReviewService,
+    private readonly campaigns: CampaignService,
+    private readonly organizations: OrganizationService,
+    private readonly withdrawals: WithdrawalService,
+    private readonly fraud: FraudService,
+    private readonly users: UserService,
+    private readonly profiles: CreatorProfileService,
+    private readonly notifications: NotificationService,
+  ) {}
 
-  open(userId: string, dto: OpenDisputeDto): Promise<Dispute> {
-    return this.prisma.dispute.create({
+  async open(userId: string, dto: OpenDisputeDto): Promise<DisputeView> {
+    await this.assertPartyToSubject(userId, dto.subjectType, dto.subjectId);
+    await this.assertNoActiveDispute(userId, dto.subjectType, dto.subjectId);
+    const dispute = await this.prisma.dispute.create({
       data: {
         openedByUserId: userId,
         subjectType: dto.subjectType,
@@ -23,33 +66,37 @@ export class DisputeService {
         reason: dto.reason,
         events: { create: { authorUserId: userId, message: dto.reason } },
       },
-    });
-  }
-
-  listOwn(userId: string): Promise<Dispute[]> {
-    return this.prisma.dispute.findMany({
-      where: { openedByUserId: userId },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  listOpen(): Promise<Dispute[]> {
-    return this.prisma.dispute.findMany({
-      where: { status: { in: ['OPEN', 'UNDER_REVIEW'] } },
-      orderBy: { createdAt: 'asc' },
-    });
-  }
-
-  async get(disputeId: string, requesterId: string, isAdmin: boolean): Promise<DisputeWithEvents> {
-    const dispute = await this.prisma.dispute.findUnique({
-      where: { id: disputeId },
       include: { events: { orderBy: { createdAt: 'asc' } } },
     });
-    if (!dispute) {
-      throw new NotFoundException('Dispute not found.');
-    }
+    await this.notifyAdmins(dispute.id);
+    return this.toView(dispute, userId);
+  }
+
+  async listOwn(userId: string): Promise<DisputeView[]> {
+    const disputes = await this.prisma.dispute.findMany({
+      where: { openedByUserId: userId },
+      include: { events: { orderBy: { createdAt: 'asc' } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return Promise.all(disputes.map((dispute) => this.toView(dispute, userId)));
+  }
+
+  async listForAdmin(scope: 'active' | 'closed', adminId: string): Promise<DisputeView[]> {
+    const disputes = await this.prisma.dispute.findMany({
+      where:
+        scope === 'active'
+          ? { status: { in: ACTIVE_STATUSES } }
+          : { status: { notIn: ACTIVE_STATUSES } },
+      include: { events: { orderBy: { createdAt: 'asc' } } },
+      orderBy: { createdAt: scope === 'active' ? 'asc' : 'desc' },
+    });
+    return Promise.all(disputes.map((dispute) => this.toView(dispute, adminId)));
+  }
+
+  async get(disputeId: string, requesterId: string, isAdmin: boolean): Promise<DisputeView> {
+    const dispute = await this.requireDispute(disputeId);
     this.assertCanAccess(dispute, requesterId, isAdmin);
-    return dispute;
+    return this.toView(dispute, requesterId);
   }
 
   async addMessage(
@@ -57,39 +104,220 @@ export class DisputeService {
     requesterId: string,
     isAdmin: boolean,
     dto: DisputeMessageDto,
-  ): Promise<DisputeEvent> {
+  ): Promise<DisputeView> {
     const dispute = await this.requireDispute(disputeId);
     this.assertCanAccess(dispute, requesterId, isAdmin);
-    if (dispute.status === 'RESOLVED' || dispute.status === 'REJECTED') {
-      throw new ConflictException('This dispute is closed.');
-    }
-    return this.prisma.disputeEvent.create({
+    this.assertActive(dispute);
+    await this.prisma.disputeEvent.create({
       data: { disputeId, authorUserId: requesterId, message: dto.message },
     });
-  }
-
-  review(disputeId: string): Promise<Dispute> {
-    return this.transition(disputeId, 'UNDER_REVIEW', ['OPEN']);
-  }
-
-  resolve(disputeId: string): Promise<Dispute> {
-    return this.transition(disputeId, 'RESOLVED', ['OPEN', 'UNDER_REVIEW']);
-  }
-
-  reject(disputeId: string): Promise<Dispute> {
-    return this.transition(disputeId, 'REJECTED', ['OPEN', 'UNDER_REVIEW']);
-  }
-
-  private async transition(
-    disputeId: string,
-    status: DisputeStatus,
-    allowedFrom: DisputeStatus[],
-  ): Promise<Dispute> {
-    const dispute = await this.requireDispute(disputeId);
-    if (!allowedFrom.includes(dispute.status)) {
-      throw new ConflictException(`A dispute cannot move to ${status} from ${dispute.status}.`);
+    if (isAdmin) {
+      await this.notifyOpener(dispute, 'Support replied to your dispute', dto.message);
     }
-    return this.prisma.dispute.update({ where: { id: dispute.id }, data: { status } });
+    return this.get(disputeId, requesterId, isAdmin);
+  }
+
+  async markUnderReview(disputeId: string, adminId: string): Promise<DisputeView> {
+    const dispute = await this.requireDispute(disputeId);
+    if (dispute.status !== 'OPEN') {
+      throw new ConflictException('Only a new dispute can be taken into review.');
+    }
+    await this.prisma.dispute.update({
+      where: { id: disputeId },
+      data: { status: 'UNDER_REVIEW' },
+    });
+    await this.notifyOpener(
+      dispute,
+      'Your dispute is being reviewed',
+      'Support has picked up your case.',
+    );
+    return this.get(disputeId, adminId, true);
+  }
+
+  async decide(disputeId: string, adminId: string, dto: DisputeDecisionDto): Promise<DisputeView> {
+    const dispute = await this.requireDispute(disputeId);
+    this.assertActive(dispute);
+    if (dto.outcome === 'UPHELD') {
+      await this.applyUpheld(dispute, adminId, dto.note);
+    } else {
+      await this.applyDenied(dispute, adminId);
+    }
+    await this.prisma.$transaction([
+      this.prisma.disputeEvent.create({
+        data: { disputeId, authorUserId: adminId, message: dto.note },
+      }),
+      this.prisma.dispute.update({
+        where: { id: disputeId },
+        data: { status: dto.outcome === 'UPHELD' ? 'RESOLVED' : 'REJECTED' },
+      }),
+    ]);
+    await this.notifyOpener(
+      dispute,
+      dto.outcome === 'UPHELD' ? 'Your dispute was upheld' : 'Your dispute was not upheld',
+      dto.note,
+    );
+    return this.get(disputeId, adminId, true);
+  }
+
+  private async applyUpheld(dispute: Dispute, adminId: string, note: string): Promise<void> {
+    if (dispute.subjectType === 'SUBMISSION' && dispute.subjectId) {
+      const submission = await this.submissions.withLatestLink(dispute.subjectId);
+      if (submission.creatorUserId === dispute.openedByUserId) {
+        await this.reviews.overrideAsAdmin(dispute.subjectId, adminId, 'APPROVED', note);
+      }
+    }
+    if (dispute.subjectType === 'FRAUD_CASE' && dispute.subjectId) {
+      await this.closeFraudCaseIfOpen(dispute.subjectId, adminId, 'DISMISSED');
+    }
+  }
+
+  private async applyDenied(dispute: Dispute, adminId: string): Promise<void> {
+    if (dispute.subjectType === 'FRAUD_CASE' && dispute.subjectId) {
+      await this.closeFraudCaseIfOpen(dispute.subjectId, adminId, 'RESOLVED');
+    }
+  }
+
+  private async closeFraudCaseIfOpen(
+    caseId: string,
+    adminId: string,
+    status: 'RESOLVED' | 'DISMISSED',
+  ): Promise<void> {
+    try {
+      await this.fraud.closeAsAdmin(caseId, adminId, status);
+    } catch (error) {
+      if (!(error instanceof ConflictException)) {
+        throw error;
+      }
+    }
+  }
+
+  private async assertPartyToSubject(
+    userId: string,
+    subjectType: DisputeSubjectType,
+    subjectId: string | undefined,
+  ): Promise<void> {
+    if (!subjectId || subjectType === 'OTHER') {
+      return;
+    }
+    if (subjectType === 'SUBMISSION') {
+      await this.submissions.getById(subjectId, userId);
+    } else if (subjectType === 'WITHDRAWAL') {
+      await this.withdrawals.assertOwnedBy(subjectId, userId);
+    } else if (subjectType === 'FRAUD_CASE') {
+      await this.fraud.assertCreatorOf(subjectId, userId);
+    } else {
+      const campaign = await this.campaigns.requireCampaign(subjectId);
+      await this.organizations.assertMember(campaign.organizationId, userId);
+    }
+  }
+
+  private async assertNoActiveDispute(
+    userId: string,
+    subjectType: DisputeSubjectType,
+    subjectId: string | undefined,
+  ): Promise<void> {
+    if (!subjectId) {
+      return;
+    }
+    const existing = await this.prisma.dispute.findFirst({
+      where: { openedByUserId: userId, subjectType, subjectId, status: { in: ACTIVE_STATUSES } },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException('You already have an open dispute about this.');
+    }
+  }
+
+  private async toView(
+    dispute: Dispute & { events: DisputeEvent[] },
+    viewerId: string,
+  ): Promise<DisputeView> {
+    const authorIds = [...new Set(dispute.events.map((event) => event.authorUserId))];
+    const adminIds = new Set<string>();
+    for (const authorId of authorIds) {
+      if ((await this.users.findById(authorId))?.type === 'ADMIN') {
+        adminIds.add(authorId);
+      }
+    }
+    const authorOf = (authorId: string): EventAuthor =>
+      authorId === viewerId ? 'YOU' : adminIds.has(authorId) ? 'SUPPORT' : 'OTHER';
+    const [subjectTitle, openedByName] = await Promise.all([
+      this.subjectTitle(dispute),
+      this.displayName(dispute.openedByUserId),
+    ]);
+    return {
+      id: dispute.id,
+      subjectType: dispute.subjectType,
+      subjectId: dispute.subjectId,
+      subjectTitle,
+      reason: dispute.reason,
+      status: dispute.status,
+      createdAt: dispute.createdAt,
+      updatedAt: dispute.updatedAt,
+      openedByUserId: dispute.openedByUserId,
+      openedByName,
+      events: dispute.events.map((event) => ({
+        id: event.id,
+        message: event.message,
+        createdAt: event.createdAt,
+        author: authorOf(event.authorUserId),
+      })),
+    };
+  }
+
+  private async subjectTitle(dispute: Dispute): Promise<string> {
+    const { subjectType, subjectId } = dispute;
+    if (!subjectId) {
+      return 'General question';
+    }
+    try {
+      if (subjectType === 'WITHDRAWAL') {
+        return 'Withdrawal';
+      }
+      if (subjectType === 'SUBMISSION') {
+        const submission = await this.submissions.withLatestLink(subjectId);
+        return (await this.campaigns.requireCampaign(submission.campaignId)).title;
+      }
+      if (subjectType === 'CAMPAIGN') {
+        return (await this.campaigns.requireCampaign(subjectId)).title;
+      }
+      const fraudCase = await this.fraud.findView(subjectId);
+      return fraudCase ? `Earnings review: ${fraudCase.campaignTitle}` : 'Earnings review';
+    } catch {
+      return 'Removed item';
+    }
+  }
+
+  private async displayName(userId: string): Promise<string> {
+    const profile = (await this.profiles.summariesByUserIds([userId])).get(userId);
+    if (profile) {
+      return profile.displayName;
+    }
+    const user = await this.users.findById(userId);
+    return user?.email ?? user?.phone ?? 'Brand user';
+  }
+
+  private async notifyAdmins(disputeId: string): Promise<void> {
+    const admins = (await this.users.listAll()).filter((user) => user.type === 'ADMIN');
+    await Promise.all(
+      admins.map((admin) =>
+        this.notifications.notify({
+          userId: admin.id,
+          type: 'DISPUTE_OPENED',
+          title: 'New dispute to review',
+          body: `Dispute ${disputeId.slice(0, 8)} is waiting in the admin queue.`,
+        }),
+      ),
+    );
+  }
+
+  private notifyOpener(dispute: Dispute, title: string, body: string): Promise<void> {
+    return this.notifications.notify({
+      userId: dispute.openedByUserId,
+      type: 'DISPUTE_UPDATED',
+      title,
+      body,
+    });
   }
 
   private assertCanAccess(dispute: Dispute, requesterId: string, isAdmin: boolean): void {
@@ -98,8 +326,17 @@ export class DisputeService {
     }
   }
 
-  private async requireDispute(disputeId: string): Promise<Dispute> {
-    const dispute = await this.prisma.dispute.findUnique({ where: { id: disputeId } });
+  private assertActive(dispute: Dispute): void {
+    if (!ACTIVE_STATUSES.includes(dispute.status)) {
+      throw new ConflictException('This dispute is closed.');
+    }
+  }
+
+  private async requireDispute(disputeId: string): Promise<Dispute & { events: DisputeEvent[] }> {
+    const dispute = await this.prisma.dispute.findUnique({
+      where: { id: disputeId },
+      include: { events: { orderBy: { createdAt: 'asc' } } },
+    });
     if (!dispute) {
       throw new NotFoundException('Dispute not found.');
     }

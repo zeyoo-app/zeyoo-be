@@ -3,6 +3,7 @@ import { ReviewDecision, Submission, SubmissionStatus } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { OrganizationService } from '@modules/iam/iam.public';
+import { NotificationService } from '@modules/notifications/notifications.public';
 import { ReviewSubmissionDto } from '../dto/review-submission.dto';
 import { SubmissionService } from './submission.service';
 
@@ -12,6 +13,12 @@ const STATUS_BY_DECISION: Record<ReviewDecision, SubmissionStatus> = {
   CHANGES_REQUESTED: 'NEEDS_CHANGES',
 };
 
+const REVIEW_TITLE: Record<ReviewDecision, string> = {
+  APPROVED: 'Your submission was approved',
+  REJECTED: 'Your submission was rejected',
+  CHANGES_REQUESTED: 'Changes were requested on your submission',
+};
+
 @Injectable()
 export class ReviewService {
   constructor(
@@ -19,6 +26,7 @@ export class ReviewService {
     private readonly submissions: SubmissionService,
     private readonly campaigns: CampaignService,
     private readonly organizations: OrganizationService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async review(
@@ -46,6 +54,33 @@ export class ReviewService {
       this.prisma.submission.update({
         where: { id: submissionId },
         data: { status: STATUS_BY_DECISION[dto.decision] },
+      }),
+    ]);
+    await this.notifications.notify({
+      userId: submission.creatorUserId,
+      type: 'SUBMISSION_REVIEWED',
+      title: REVIEW_TITLE[dto.decision],
+      body: dto.note ?? 'Open the campaign to see the details.',
+    });
+    return updated;
+  }
+
+  /** A platform admin's ruling on an appeal; recorded as a review like any other. */
+  async overrideAsAdmin(
+    submissionId: string,
+    adminUserId: string,
+    decision: ReviewDecision,
+    note: string,
+  ): Promise<Submission> {
+    const submission = await this.submissions.requireSubmission(submissionId);
+    const revisionId = await this.latestRevisionId(submissionId);
+    const [, updated] = await this.prisma.$transaction([
+      this.prisma.review.create({
+        data: { submissionId, revisionId, reviewerUserId: adminUserId, decision, note },
+      }),
+      this.prisma.submission.update({
+        where: { id: submission.id },
+        data: { status: STATUS_BY_DECISION[decision] },
       }),
     ]);
     return updated;

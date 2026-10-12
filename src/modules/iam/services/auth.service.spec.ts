@@ -118,7 +118,10 @@ describe('AuthService email sign-in', () => {
 
       const result = await service.verifyEmailCode(EMAIL, '123456', UserType.BRAND_USER);
 
-      expect(users.createWithEmail).toHaveBeenCalledWith({ email: EMAIL, type: UserType.BRAND_USER });
+      expect(users.createWithEmail).toHaveBeenCalledWith({
+        email: EMAIL,
+        type: UserType.BRAND_USER,
+      });
       expect(result).toEqual({ ...TOKENS, isNewUser: true });
     });
 
@@ -191,14 +194,19 @@ describe('AuthService email sign-in', () => {
     it('texts a code and creates nothing', async () => {
       await service.requestPhoneCode(PHONE);
 
-      expect(sms.sendVerificationCode).toHaveBeenCalledWith(PHONE, expect.stringMatching(/^\d{6}$/));
+      expect(sms.sendVerificationCode).toHaveBeenCalledWith(
+        PHONE,
+        expect.stringMatching(/^\d{6}$/),
+      );
       expect(users.createWithPhone).not.toHaveBeenCalled();
     });
 
     it('rate-limits a repeat text inside the cooldown', async () => {
       codeTable.findFirst.mockResolvedValue({ createdAt: new Date() });
 
-      await expect(service.requestPhoneCode(PHONE)).rejects.toBeInstanceOf(TooManyRequestsException);
+      await expect(service.requestPhoneCode(PHONE)).rejects.toBeInstanceOf(
+        TooManyRequestsException,
+      );
       expect(sms.sendVerificationCode).not.toHaveBeenCalled();
     });
 
@@ -210,7 +218,10 @@ describe('AuthService email sign-in', () => {
 
       const result = await service.verifyPhoneCode(PHONE, '123456', UserType.BRAND_USER);
 
-      expect(users.createWithPhone).toHaveBeenCalledWith({ phone: PHONE, type: UserType.BRAND_USER });
+      expect(users.createWithPhone).toHaveBeenCalledWith({
+        phone: PHONE,
+        type: UserType.BRAND_USER,
+      });
       expect(result).toEqual({ ...TOKENS, isNewUser: true });
     });
 

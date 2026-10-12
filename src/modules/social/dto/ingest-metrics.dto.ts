@@ -5,7 +5,7 @@ const count = z.number().int().nonnegative();
 
 export const ingestMetricsSchema = z.object({
   creatorUserId: z.string().uuid(),
-  platform: z.enum(['TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'X']),
+  platform: z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X']),
   views: count,
   likes: count,
   comments: count,

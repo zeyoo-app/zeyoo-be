@@ -21,7 +21,12 @@ export class OAuthService {
 
   async signIn(input: OAuthSignInInput): Promise<AuthTokens> {
     const profile = await this.verifier.verify(input.provider, input.idToken);
-    const user = await this.resolveUser(input, profile.providerUserId, profile.email, profile.emailVerified);
+    const user = await this.resolveUser(
+      input,
+      profile.providerUserId,
+      profile.email,
+      profile.emailVerified,
+    );
 
     if (user.status === 'SUSPENDED') {
       throw new ForbiddenException('This account is suspended.');

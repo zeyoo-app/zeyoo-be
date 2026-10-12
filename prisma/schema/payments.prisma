@@ -17,6 +17,7 @@ enum LedgerTransactionType {
   CAMPAIGN_FUNDING
   EARNING_ACCRUAL
   WITHDRAWAL
+  CAMPAIGN_REFUND
 }
 
 enum FundingStatus {
@@ -118,4 +119,47 @@ model PayoutAccount {
   updatedAt       DateTime @updatedAt
 
   @@map("payout_accounts")
+}
+
+// What a creator has already been credited for a campaign. The running total is
+// the settlement's idempotency state: each pass only accrues the difference
+// between the creator's entitlement and this amount.
+model CreatorEarning {
+  id             String   @id @default(uuid()) @db.Uuid
+  campaignId     String   @db.Uuid
+  creatorUserId  String   @db.Uuid
+  accruedAmount  Int      @default(0) // minor units
+  currencyCode   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([campaignId, creatorUserId])
+  @@index([creatorUserId])
+  @@map("creator_earnings")
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+// Unspent campaign budget returned to the brand's card. One row per Stripe refund; a
+// campaign funded in several payments can need several refunds.
+model CampaignRefund {
+  id              String       @id @default(uuid()) @db.Uuid
+  campaignId      String       @db.Uuid
+  organizationId  String       @db.Uuid
+  fundingId       String       @db.Uuid
+  amount          Int // minor units
+  currencyCode    String
+  status          RefundStatus @default(PENDING)
+  stripeRefundId  String?
+  createdByUserId String       @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([campaignId])
+  @@index([fundingId])
+  @@map("campaign_refunds")
 }

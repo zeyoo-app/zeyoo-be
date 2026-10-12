@@ -4,15 +4,30 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Review, Submission, SubmissionRevision } from '@prisma/client';
+import {
+  Review,
+  Submission,
+  SubmissionContentType,
+  SubmissionRevision,
+  SubmissionStatus,
+} from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { ApplicationService } from '@modules/applications/applications.public';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { OrganizationService } from '@modules/iam/iam.public';
+import { CreatorProfileService, CreatorSummary } from '@modules/creators/creators.public';
+import { parsePostUrl } from '@modules/social/social.public';
 import { SubmitContentDto } from '../dto/submit-content.dto';
 
 export type SubmissionWithRevisions = Submission & { revisions: SubmissionRevision[] };
 export type SubmissionDetail = SubmissionWithRevisions & { reviews: Review[] };
+
+/** A submission as a brand sees it: who made it, and whether that account is verified. */
+export type SubmissionForReview = SubmissionWithRevisions & {
+  creator: Pick<CreatorSummary, 'displayName' | 'username' | 'avatarUrl'> | null;
+  /** The post's platform is one the creator proved they own by signing in to it. */
+  accountVerified: boolean;
+};
 
 @Injectable()
 export class SubmissionService {
@@ -21,6 +36,7 @@ export class SubmissionService {
     private readonly campaigns: CampaignService,
     private readonly organizations: OrganizationService,
     private readonly applications: ApplicationService,
+    private readonly profiles: CreatorProfileService,
   ) {}
 
   async submit(
@@ -67,20 +83,41 @@ export class SubmissionService {
     return submission;
   }
 
-  async listForCampaign(campaignId: string, requesterId: string): Promise<Submission[]> {
+  async listForCampaign(campaignId: string, requesterId: string): Promise<SubmissionForReview[]> {
     const campaign = await this.campaigns.requireCampaign(campaignId);
     await this.organizations.assertMember(campaign.organizationId, requesterId);
-    return this.prisma.submission.findMany({
+    const submissions = await this.prisma.submission.findMany({
       where: { campaignId },
+      include: { revisions: { orderBy: { createdAt: 'asc' } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const creators = await this.profiles.summariesByUserIds(
+      submissions.map((submission) => submission.creatorUserId),
+    );
+    return submissions.map((submission) => {
+      const creator = creators.get(submission.creatorUserId) ?? null;
+      return {
+        ...submission,
+        creator: creator && toPublicCreator(creator),
+        accountVerified: isVerified(submission, creator),
+      };
+    });
+  }
+
+  listOwn(creatorUserId: string): Promise<SubmissionWithRevisions[]> {
+    return this.prisma.submission.findMany({
+      where: { creatorUserId },
+      include: { revisions: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  listOwn(creatorUserId: string): Promise<Submission[]> {
-    return this.prisma.submission.findMany({
+  async campaignIdsForCreator(creatorUserId: string): Promise<string[]> {
+    const submissions = await this.prisma.submission.findMany({
       where: { creatorUserId },
-      orderBy: { createdAt: 'desc' },
+      select: { campaignId: true },
     });
+    return submissions.map((submission) => submission.campaignId);
   }
 
   async summaryForCampaign(campaignId: string): Promise<{ total: number; approved: number }> {
@@ -89,6 +126,53 @@ export class SubmissionService {
       this.prisma.submission.count({ where: { campaignId, status: 'APPROVED' } }),
     ]);
     return { total, approved };
+  }
+
+  /** Approved submissions with the link their creator most recently submitted, if any. */
+  async approvedWithLatestLink(campaignId: string): Promise<SubmissionLink[]> {
+    const approved = await this.prisma.submission.findMany({
+      where: { campaignId, status: 'APPROVED' },
+      select: {
+        id: true,
+        campaignId: true,
+        creatorUserId: true,
+        revisions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { contentType: true, contentUrl: true },
+        },
+      },
+    });
+    return approved.map((submission) => toSubmissionLink(submission));
+  }
+
+  async withLatestLink(submissionId: string): Promise<SubmissionLink> {
+    const submission = await this.prisma.submission.findUnique({
+      where: { id: submissionId },
+      select: {
+        id: true,
+        campaignId: true,
+        creatorUserId: true,
+        status: true,
+        revisions: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { contentType: true, contentUrl: true },
+        },
+      },
+    });
+    if (!submission) {
+      throw new NotFoundException('Submission not found.');
+    }
+    return { ...toSubmissionLink(submission), status: submission.status };
+  }
+
+  async approvedCreatorIds(campaignId: string): Promise<string[]> {
+    const approved = await this.prisma.submission.findMany({
+      where: { campaignId, status: 'APPROVED' },
+      select: { creatorUserId: true },
+    });
+    return approved.map((submission) => submission.creatorUserId);
   }
 
   async requireSubmission(submissionId: string): Promise<Submission> {
@@ -136,4 +220,47 @@ export class SubmissionService {
   } {
     return { contentType: dto.contentType, contentUrl: dto.contentUrl, note: dto.note ?? null };
   }
+}
+
+export interface SubmissionLink {
+  submissionId: string;
+  campaignId: string;
+  creatorUserId: string;
+  status?: SubmissionStatus;
+  /** Only a LINK revision points at a post a platform can be asked about. */
+  postUrl: string | null;
+}
+
+function toSubmissionLink(submission: {
+  id: string;
+  campaignId: string;
+  creatorUserId: string;
+  revisions: { contentType: SubmissionContentType; contentUrl: string }[];
+}): SubmissionLink {
+  const latest = submission.revisions[0];
+  return {
+    submissionId: submission.id,
+    campaignId: submission.campaignId,
+    creatorUserId: submission.creatorUserId,
+    postUrl: latest?.contentType === 'LINK' ? latest.contentUrl : null,
+  };
+}
+
+function toPublicCreator(
+  creator: CreatorSummary,
+): Pick<CreatorSummary, 'displayName' | 'username' | 'avatarUrl'> {
+  return {
+    displayName: creator.displayName,
+    username: creator.username,
+    avatarUrl: creator.avatarUrl,
+  };
+}
+
+function isVerified(submission: SubmissionWithRevisions, creator: CreatorSummary | null): boolean {
+  const latest = submission.revisions[submission.revisions.length - 1];
+  const post = latest?.contentType === 'LINK' ? parsePostUrl(latest.contentUrl) : null;
+  if (!post || !creator) {
+    return false;
+  }
+  return creator.accounts.some((account) => account.platform === post.platform && account.verified);
 }

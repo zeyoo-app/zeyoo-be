@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ApplicationsModule } from '@modules/applications/applications.public';
 import { CampaignsModule } from '@modules/campaigns/campaigns.public';
+import { CreatorsModule } from '@modules/creators/creators.public';
 import { IamModule } from '@modules/iam/iam.public';
 import { PaymentsModule } from '@modules/payments/payments.public';
 import { SocialModule } from '@modules/social/social.public';
@@ -11,6 +12,7 @@ import { AnalyticsService } from './services/analytics.service';
 @Module({
   imports: [
     CampaignsModule,
+    CreatorsModule,
     IamModule,
     ApplicationsModule,
     SubmissionsModule,

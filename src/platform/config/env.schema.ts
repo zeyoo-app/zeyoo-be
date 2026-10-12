@@ -16,6 +16,9 @@ export const envSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  // Stripe signs each webhook endpoint with its own secret. Set this when the billing
+  // endpoint is registered separately; otherwise STRIPE_WEBHOOK_SECRET is used for both.
+  STRIPE_BILLING_WEBHOOK_SECRET: z.string().optional(),
   // Temporary launch switch: records funding as succeeded and runs the normal
   // fulfillment path without contacting Stripe. Keep false once Stripe is live.
   PAYMENTS_BYPASS_STRIPE: z
@@ -62,6 +65,25 @@ export const envSchema = z.object({
   // is empty in production, that provider's endpoint is disabled.
   GOOGLE_OAUTH_CLIENT_IDS: z.string().default(''),
   APPLE_OAUTH_CLIENT_IDS: z.string().default(''),
+
+  // Reading a post's views from each platform. Every key is optional: a platform
+  // whose key is missing falls back to manual view entry. YouTube and X use an
+  // app-level key; Instagram and TikTok also need each creator to connect their own
+  // account (OAuth), which is why they have an app id/secret pair and a redirect URI.
+  YOUTUBE_API_KEY: z.string().optional(),
+  X_BEARER_TOKEN: z.string().optional(),
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
+  INSTAGRAM_APP_ID: z.string().optional(),
+  INSTAGRAM_APP_SECRET: z.string().optional(),
+  // Where Instagram/TikTok send the creator back after they authorise (a page on
+  // the web app that forwards the code to the API).
+  SOCIAL_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  // 32-byte key, base64 or hex, that encrypts creators' stored platform tokens and
+  // signs the OAuth state. Without it, account connection is disabled.
+  SOCIAL_TOKEN_ENCRYPTION_KEY: z.string().optional(),
+  // Minutes between automatic view refreshes; 0 disables the scheduler.
+  VIEW_SYNC_INTERVAL_MINUTES: z.coerce.number().int().nonnegative().default(360),
 
   // Optional: enables the AI assistant features when present.
   ANTHROPIC_API_KEY: z.string().optional(),

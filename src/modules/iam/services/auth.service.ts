@@ -195,9 +195,9 @@ export class AuthService {
 
   /** The email and phone code tables share one shape, differing only in the identifier column. */
   private codeTable(channel: CodeChannel): CodeTable {
-    return (
-      channel === 'email' ? this.prisma.emailVerificationCode : this.prisma.phoneVerificationCode
-    ) as unknown as CodeTable;
+    return (channel === 'email'
+      ? this.prisma.emailVerificationCode
+      : this.prisma.phoneVerificationCode) as unknown as CodeTable;
   }
 
   /**

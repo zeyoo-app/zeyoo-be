@@ -30,7 +30,9 @@ function setup(baseUrl = 'https://cdn.test'): {
   create: jest.Mock;
   put: jest.Mock;
 } {
-  const create = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'asset-1', ...data }));
+  const create = jest
+    .fn()
+    .mockImplementation(({ data }) => Promise.resolve({ id: 'asset-1', ...data }));
   const prisma = { mediaAsset: { create } } as unknown as PrismaService;
   const put = jest.fn().mockResolvedValue(undefined);
   const storage = { put } as unknown as ImageStorage;

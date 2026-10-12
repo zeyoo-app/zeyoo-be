@@ -35,9 +35,9 @@ export class StripeWebhookController {
     }
     const event = this.gateway.parseWebhookEvent(request.rawBody, signature);
     if (event.kind === 'FUNDING_SUCCEEDED') {
-      await this.funding.markSucceeded(event.intentId);
+      await this.funding.markSucceeded(event.reference);
     } else if (event.kind === 'FUNDING_FAILED') {
-      await this.funding.markFailed(event.intentId);
+      await this.funding.markFailed(event.reference);
     }
   }
 }

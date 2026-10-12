@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccountModule } from '@modules/account/account.module';
 import { AuthPlatformModule } from '@platform/auth';
 import { AppConfigModule } from '@platform/config/app-config.module';
 import { PrismaModule } from '@platform/database/prisma.module';
@@ -35,6 +36,7 @@ import { SubmissionsModule } from '@modules/submissions/submissions.public';
     ApplicationsModule,
     SubmissionsModule,
     PaymentsModule,
+    AccountModule,
     BillingModule,
     NotificationsModule,
     SocialModule,

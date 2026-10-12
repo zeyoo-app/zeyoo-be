@@ -9,6 +9,7 @@ interface Mocks {
   findUnique: jest.Mock;
   isMember: jest.Mock;
   assertMember: jest.Mock;
+  findInvitation: jest.Mock;
 }
 
 function buildCampaign(overrides: Partial<Campaign> = {}): Campaign {
@@ -22,8 +23,12 @@ function buildCampaign(overrides: Partial<Campaign> = {}): Campaign {
     goals: null,
     audience: null,
     guidelines: null,
+    hashtags: [],
+    mentions: [],
+    referenceMaterials: [],
     coverImageUrl: null,
     platform: 'TIKTOK',
+    platforms: ['TIKTOK'],
     contentType: 'UGC',
     visibility: 'PRIVATE' as CampaignVisibility,
     status: 'DRAFT' as CampaignStatus,
@@ -33,6 +38,7 @@ function buildCampaign(overrides: Partial<Campaign> = {}): Campaign {
     budgetAmount: 100_000,
     rewardType: 'FIXED_PER_ITEM',
     rewardAmount: 5_000,
+    maxRewardPerCreatorAmount: null,
     publishedAt: null,
     closedAt: null,
     createdAt: new Date(),
@@ -46,8 +52,12 @@ function setup(campaign: Campaign): { service: CampaignService; mocks: Mocks } {
     findUnique: jest.fn().mockResolvedValue(campaign),
     isMember: jest.fn(),
     assertMember: jest.fn().mockResolvedValue(undefined),
+    findInvitation: jest.fn().mockResolvedValue(null),
   };
-  const prisma = { campaign: { findUnique: mocks.findUnique } } as unknown as PrismaService;
+  const prisma = {
+    campaign: { findUnique: mocks.findUnique },
+    campaignInvitation: { findFirst: mocks.findInvitation },
+  } as unknown as PrismaService;
   const organizations = {
     isMember: mocks.isMember,
     assertMember: mocks.assertMember,
@@ -92,5 +102,22 @@ describe('CampaignService.getById visibility', () => {
     mocks.isMember.mockResolvedValue(false);
 
     await expect(service.getById('campaign-1', 'outsider')).resolves.toBeDefined();
+  });
+
+  it('shows a published invite-only campaign to an invited creator', async () => {
+    const { service, mocks } = setup(buildCampaign({ status: 'PUBLISHED', visibility: 'PRIVATE' }));
+    mocks.isMember.mockResolvedValue(false);
+    mocks.findInvitation.mockResolvedValue({ id: 'invitation-1' });
+
+    await expect(service.getById('campaign-1', 'invited-creator')).resolves.toBeDefined();
+  });
+
+  it('hides a published invite-only campaign from a creator who was not invited', async () => {
+    const { service, mocks } = setup(buildCampaign({ status: 'PUBLISHED', visibility: 'PRIVATE' }));
+    mocks.isMember.mockResolvedValue(false);
+
+    await expect(service.getById('campaign-1', 'outsider')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 });

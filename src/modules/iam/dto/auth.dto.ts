@@ -3,12 +3,7 @@ import { z } from 'zod';
 import { isDeliverablePhone, normalizePhone } from '../phone-number';
 
 // Lower-cased and trimmed so one address always maps to one account and one code row.
-const email = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .email()
-  .max(254);
+const email = z.string().trim().toLowerCase().email().max(254);
 
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),

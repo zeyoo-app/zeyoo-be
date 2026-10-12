@@ -14,7 +14,7 @@ import { CampaignInvitation } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
 import { InviteCreatorDto } from '../dto/invitation.dto';
-import { InvitationService } from '../services/invitation.service';
+import { InvitationService, InvitationWithCreator } from '../services/invitation.service';
 
 @ApiTags('campaign-invitations')
 @ApiBearerAuth()
@@ -29,14 +29,14 @@ export class CampaignInvitationsController {
     @Param('campaignId', ParseUUIDPipe) campaignId: string,
     @Body() dto: InviteCreatorDto,
   ): Promise<CampaignInvitation> {
-    return this.invitations.invite(campaignId, principal.userId, dto.creatorEmail);
+    return this.invitations.invite(campaignId, principal.userId, dto);
   }
 
   @Get()
   list(
     @CurrentUser() principal: Principal,
     @Param('campaignId', ParseUUIDPipe) campaignId: string,
-  ): Promise<CampaignInvitation[]> {
+  ): Promise<InvitationWithCreator[]> {
     return this.invitations.listForCampaign(campaignId, principal.userId);
   }
 

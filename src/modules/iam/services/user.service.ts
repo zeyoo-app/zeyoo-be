@@ -40,6 +40,43 @@ export class UserService {
     return this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
+  /**
+   * Erases everything that identifies the person — identifiers, sign-in methods,
+   * sessions and sign-in codes — and keeps only the bare row that history (ledger,
+   * reviews) points at. Irreversible.
+   */
+  async anonymize(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.prisma.$transaction([
+      // Prisma treats `undefined` as "no filter", so each code table is only touched
+      // for an identifier this user actually has — never with an open-ended delete.
+      ...(user.email
+        ? [this.prisma.emailVerificationCode.deleteMany({ where: { email: user.email } })]
+        : []),
+      ...(user.phone
+        ? [this.prisma.phoneVerificationCode.deleteMany({ where: { phone: user.phone } })]
+        : []),
+      this.prisma.oAuthIdentity.deleteMany({ where: { userId } }),
+      this.prisma.refreshToken.deleteMany({ where: { userId } }),
+      this.prisma.membership.deleteMany({ where: { userId } }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          email: null,
+          phone: null,
+          emailVerifiedAt: null,
+          phoneVerifiedAt: null,
+          status: 'DELETED',
+          deletedAt: new Date(),
+        },
+      }),
+    ]);
+  }
+
+  setType(userId: string, type: UserType): Promise<User> {
+    return this.prisma.user.update({ where: { id: userId }, data: { type } });
+  }
+
   setStatus(userId: string, status: UserStatus): Promise<User> {
     return this.prisma.user.update({ where: { id: userId }, data: { status } });
   }
@@ -93,10 +130,7 @@ export class UserService {
   }
 
   /** Resolves the user behind a linked social identity, if any. */
-  async findByOAuthIdentity(
-    provider: OAuthProvider,
-    providerUserId: string,
-  ): Promise<User | null> {
+  async findByOAuthIdentity(provider: OAuthProvider, providerUserId: string): Promise<User | null> {
     const identity = await this.prisma.oAuthIdentity.findUnique({
       where: { provider_providerUserId: { provider, providerUserId } },
       include: { user: true },

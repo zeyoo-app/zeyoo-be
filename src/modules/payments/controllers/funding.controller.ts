@@ -1,8 +1,8 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
-import { FundingCreated, FundingService } from '../application/funding.service';
+import { FundingCreated, FundingService, FundingStatus } from '../application/funding.service';
 import { CreateFundingDto } from '../dto/payments.dto';
 
 @ApiTags('funding')
@@ -18,6 +18,20 @@ export class FundingController {
     @Param('campaignId', ParseUUIDPipe) campaignId: string,
     @Body() dto: CreateFundingDto,
   ): Promise<FundingCreated> {
-    return this.funding.createForCampaign(campaignId, principal.userId, dto.amountMinor);
+    return this.funding.createForCampaign(
+      campaignId,
+      principal.userId,
+      dto.amountMinor,
+      dto.client,
+    );
+  }
+
+  @RequirePermission(Permission.CampaignManage)
+  @Get()
+  latest(
+    @CurrentUser() principal: Principal,
+    @Param('campaignId', ParseUUIDPipe) campaignId: string,
+  ): Promise<FundingStatus | null> {
+    return this.funding.latestForCampaign(campaignId, principal.userId);
   }
 }
