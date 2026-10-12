@@ -18,10 +18,31 @@ model Notification {
 model NotificationPreference {
   id           String   @id @default(uuid()) @db.Uuid
   userId       String   @unique @db.Uuid
+  // Channel switches: pushEnabled gates device pushes; the in-app feed is always kept
+  // for the categories below.
   emailEnabled Boolean  @default(true)
   pushEnabled  Boolean  @default(true)
+  // Categories: a category switched off raises no notification at all.
+  submissionUpdates Boolean @default(true)
+  payoutUpdates     Boolean @default(true)
+  campaignInvites   Boolean @default(true)
+  productNews       Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@map("notification_preferences")
+}
+
+// An installed app instance that can receive push notifications. The token is the
+// Expo push token the app registers after the user grants permission.
+model DeviceToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("notification_device_tokens")
 }

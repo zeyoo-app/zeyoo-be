@@ -18,6 +18,8 @@ function buildProfile(status: VerificationStatus): CreatorProfile {
     headline: null,
     bio: null,
     country: null,
+    verificationNote: null,
+    verificationReviewedAt: null,
     verificationStatus: status,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -32,7 +34,7 @@ function setup(profile: CreatorProfile | null): { service: CreatorProfileService
   const prisma = {
     creatorProfile: { findUnique: mocks.findUnique, update: mocks.update },
   } as unknown as PrismaService;
-  return { service: new CreatorProfileService(prisma), mocks };
+  return { service: new CreatorProfileService(prisma, { notify: jest.fn() } as never), mocks };
 }
 
 describe('CreatorProfileService.requestVerification', () => {

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { CreatorsModule } from '@modules/creators/creators.public';
 import { IamModule } from '@modules/iam/iam.public';
+import { NotificationsModule } from '@modules/notifications/notifications.public';
 import { CampaignInvitationsController } from './controllers/campaign-invitations.controller';
 import { CampaignsController } from './controllers/campaigns.controller';
 import { CategoriesController } from './controllers/categories.controller';
@@ -9,7 +11,7 @@ import { CategoryService } from './services/category.service';
 import { InvitationService } from './services/invitation.service';
 
 @Module({
-  imports: [IamModule],
+  imports: [CreatorsModule, IamModule, NotificationsModule],
   controllers: [
     OrgCampaignsController,
     CampaignsController,

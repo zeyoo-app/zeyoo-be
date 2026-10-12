@@ -102,7 +102,10 @@ describe('PlunkMailer', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ success: false, error: { code: 'DOMAIN_NOT_VERIFIED', message: 'nope' } }),
+      json: async () => ({
+        success: false,
+        error: { code: 'DOMAIN_NOT_VERIFIED', message: 'nope' },
+      }),
     });
     const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
 
@@ -119,9 +122,10 @@ describe('PlunkMailer', () => {
     });
     const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
 
-    const failure = await mailer
-      .sendSignInCode('user@example.com', '123456')
-      .then(() => null, (error: Error) => error);
+    const failure = await mailer.sendSignInCode('user@example.com', '123456').then(
+      () => null,
+      (error: Error) => error,
+    );
 
     expect(failure?.message).toMatch(/try again shortly/i);
     expect(failure?.message).not.toMatch(/bad key|UNAUTHORIZED|user@example\.com/);
@@ -152,7 +156,8 @@ describe('PlunkMailer', () => {
         success: false,
         error: {
           code: 'INTERNAL_SERVER_ERROR',
-          message: 'Domain "zeyoo.app" is not verified. Please complete the DNS verification process.',
+          message:
+            'Domain "zeyoo.app" is not verified. Please complete the DNS verification process.',
         },
       }),
     });

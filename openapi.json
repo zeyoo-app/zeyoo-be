@@ -1104,6 +1104,174 @@
         ]
       }
     },
+    "/me/notifications": {
+      "get": {
+        "operationId": "NotificationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/me/notifications/{notificationId}/read": {
+      "post": {
+        "operationId": "NotificationsController_markRead",
+        "parameters": [
+          {
+            "name": "notificationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/me/notifications/read-all": {
+      "post": {
+        "operationId": "NotificationsController_markAllRead",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/me/notification-preferences": {
+      "get": {
+        "operationId": "NotificationPreferencesController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "operationId": "NotificationPreferencesController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/me/devices": {
+      "post": {
+        "operationId": "DevicesController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      },
+      "delete": {
+        "operationId": "DevicesController_unregister",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/campaigns/{campaignId}/applications": {
       "post": {
         "operationId": "CampaignApplicationsController_apply",
@@ -1494,6 +1662,201 @@
         "tags": [
           "funding"
         ]
+      },
+      "get": {
+        "operationId": "FundingController_latest",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "funding"
+        ]
+      }
+    },
+    "/me/campaign-earnings": {
+      "get": {
+        "operationId": "EarningsController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "earnings"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/earnings": {
+      "get": {
+        "operationId": "EarningsController_summary",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "earnings"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/earnings/settle": {
+      "post": {
+        "operationId": "EarningsController_settle",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "earnings"
+        ]
+      }
+    },
+    "/submissions/{submissionId}/views": {
+      "post": {
+        "operationId": "ViewTrackingController_recordManual",
+        "parameters": [
+          {
+            "name": "submissionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualViewsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "view-tracking"
+        ]
+      }
+    },
+    "/submissions/{submissionId}/views/sync": {
+      "post": {
+        "operationId": "ViewTrackingController_syncSubmission",
+        "parameters": [
+          {
+            "name": "submissionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "view-tracking"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/views/sync": {
+      "post": {
+        "operationId": "ViewTrackingController_syncCampaign",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "view-tracking"
+        ]
       }
     },
     "/me/withdrawals": {
@@ -1627,25 +1990,6 @@
         ]
       }
     },
-    "/admin/withdrawals": {
-      "get": {
-        "operationId": "AdminPayoutsController_listOpen",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "admin-payouts"
-        ]
-      }
-    },
     "/admin/withdrawals/{withdrawalId}/hold": {
       "post": {
         "operationId": "AdminPayoutsController_hold",
@@ -1765,6 +2109,427 @@
         ],
         "tags": [
           "admin-payouts"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/fraud/assess": {
+      "post": {
+        "operationId": "CampaignFraudController_assess",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessEngagementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fraud"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/fraud-cases": {
+      "post": {
+        "operationId": "CampaignFraudController_flag",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlagFraudDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fraud"
+        ]
+      },
+      "get": {
+        "operationId": "CampaignFraudController_list",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fraud"
+        ]
+      }
+    },
+    "/me/fraud-cases": {
+      "get": {
+        "operationId": "FraudCasesController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fraud"
+        ]
+      }
+    },
+    "/fraud-cases/{caseId}/resolve": {
+      "post": {
+        "operationId": "FraudCasesController_resolve",
+        "parameters": [
+          {
+            "name": "caseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fraud"
+        ]
+      }
+    },
+    "/fraud-cases/{caseId}/dismiss": {
+      "post": {
+        "operationId": "FraudCasesController_dismiss",
+        "parameters": [
+          {
+            "name": "caseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "fraud"
+        ]
+      }
+    },
+    "/admin/fraud-cases": {
+      "get": {
+        "operationId": "AdminFraudController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/fraud-cases/{caseId}/confirm": {
+      "post": {
+        "operationId": "AdminFraudController_confirm",
+        "parameters": [
+          {
+            "name": "caseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/fraud-cases/{caseId}/clear": {
+      "post": {
+        "operationId": "AdminFraudController_clear",
+        "parameters": [
+          {
+            "name": "caseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/metrics": {
+      "post": {
+        "operationId": "CampaignMetricsController_ingest",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestMetricsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "metrics"
+        ]
+      },
+      "get": {
+        "operationId": "CampaignMetricsController_list",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "metrics"
+        ]
+      }
+    },
+    "/me/social-connections/complete": {
+      "post": {
+        "operationId": "PlatformConnectionsController_complete",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "social-connections"
+        ]
+      }
+    },
+    "/me/social-connections/{platform}/start": {
+      "post": {
+        "operationId": "PlatformConnectionsController_start",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartConnectionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "social-connections"
+        ]
+      }
+    },
+    "/me/account": {
+      "delete": {
+        "operationId": "AccountController_deleteAccount",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "account"
         ]
       }
     },
@@ -1906,182 +2671,6 @@
         ],
         "tags": [
           "billing"
-        ]
-      }
-    },
-    "/me/notifications": {
-      "get": {
-        "operationId": "NotificationsController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/me/notifications/{notificationId}/read": {
-      "post": {
-        "operationId": "NotificationsController_markRead",
-        "parameters": [
-          {
-            "name": "notificationId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/me/notifications/read-all": {
-      "post": {
-        "operationId": "NotificationsController_markAllRead",
-        "parameters": [],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/me/notification-preferences": {
-      "get": {
-        "operationId": "NotificationPreferencesController_get",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      },
-      "patch": {
-        "operationId": "NotificationPreferencesController_update",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePreferencesDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "notifications"
-        ]
-      }
-    },
-    "/campaigns/{campaignId}/metrics": {
-      "post": {
-        "operationId": "CampaignMetricsController_ingest",
-        "parameters": [
-          {
-            "name": "campaignId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IngestMetricsDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "metrics"
-        ]
-      },
-      "get": {
-        "operationId": "CampaignMetricsController_list",
-        "parameters": [
-          {
-            "name": "campaignId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "metrics"
         ]
       }
     },
@@ -2244,164 +2833,6 @@
         ]
       }
     },
-    "/campaigns/{campaignId}/fraud/assess": {
-      "post": {
-        "operationId": "CampaignFraudController_assess",
-        "parameters": [
-          {
-            "name": "campaignId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssessEngagementDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "fraud"
-        ]
-      }
-    },
-    "/campaigns/{campaignId}/fraud-cases": {
-      "post": {
-        "operationId": "CampaignFraudController_flag",
-        "parameters": [
-          {
-            "name": "campaignId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FlagFraudDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "fraud"
-        ]
-      },
-      "get": {
-        "operationId": "CampaignFraudController_list",
-        "parameters": [
-          {
-            "name": "campaignId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "fraud"
-        ]
-      }
-    },
-    "/fraud-cases/{caseId}/resolve": {
-      "post": {
-        "operationId": "FraudCasesController_resolve",
-        "parameters": [
-          {
-            "name": "caseId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "fraud"
-        ]
-      }
-    },
-    "/fraud-cases/{caseId}/dismiss": {
-      "post": {
-        "operationId": "FraudCasesController_dismiss",
-        "parameters": [
-          {
-            "name": "caseId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "fraud"
-        ]
-      }
-    },
     "/campaigns/{campaignId}/report": {
       "get": {
         "operationId": "CampaignReportController_get",
@@ -2544,8 +2975,17 @@
     },
     "/admin/disputes": {
       "get": {
-        "operationId": "AdminDisputesController_listOpen",
-        "parameters": [],
+        "operationId": "AdminDisputesController_list",
+        "parameters": [
+          {
+            "name": "scope",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -2557,7 +2997,7 @@
           }
         ],
         "tags": [
-          "disputes"
+          "admin"
         ]
       }
     },
@@ -2585,13 +3025,13 @@
           }
         ],
         "tags": [
-          "disputes"
+          "admin"
         ]
       }
     },
-    "/admin/disputes/{disputeId}/resolve": {
+    "/admin/disputes/{disputeId}/decision": {
       "post": {
-        "operationId": "AdminDisputesController_resolve",
+        "operationId": "AdminDisputesController_decide",
         "parameters": [
           {
             "name": "disputeId",
@@ -2602,6 +3042,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisputeDecisionDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2613,23 +3063,14 @@
           }
         ],
         "tags": [
-          "disputes"
+          "admin"
         ]
       }
     },
-    "/admin/disputes/{disputeId}/reject": {
-      "post": {
-        "operationId": "AdminDisputesController_reject",
-        "parameters": [
-          {
-            "name": "disputeId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+    "/admin/overview": {
+      "get": {
+        "operationId": "AdminController_overview",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -2641,14 +3082,55 @@
           }
         ],
         "tags": [
-          "disputes"
+          "admin"
         ]
       }
     },
     "/admin/users": {
       "get": {
         "operationId": "AdminController_listUsers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "search",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -2723,7 +3205,24 @@
     "/admin/organizations": {
       "get": {
         "operationId": "AdminController_listOrganizations",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -2742,6 +3241,213 @@
     "/admin/campaigns": {
       "get": {
         "operationId": "AdminController_listCampaigns",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/campaigns/{campaignId}/close": {
+      "post": {
+        "operationId": "AdminController_closeCampaign",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/campaigns/{campaignId}/refund": {
+      "post": {
+        "operationId": "AdminController_refundCampaign",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/fundings": {
+      "get": {
+        "operationId": "AdminController_listFundings",
+        "parameters": [
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/withdrawals": {
+      "get": {
+        "operationId": "AdminController_listWithdrawals",
+        "parameters": [
+          {
+            "name": "scope",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/billing": {
+      "get": {
+        "operationId": "AdminController_billing",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/categories": {
+      "get": {
+        "operationId": "AdminController_listCategories",
         "parameters": [],
         "responses": {
           "200": {
@@ -2774,6 +3480,274 @@
         },
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/audit-log": {
+      "get": {
+        "operationId": "AdminController_auditLog",
+        "parameters": [
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/users/{userId}": {
+      "get": {
+        "operationId": "AdminPeopleController_userDetail",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/verifications": {
+      "get": {
+        "operationId": "AdminPeopleController_verifications",
+        "parameters": [
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/verifications/{userId}/approve": {
+      "post": {
+        "operationId": "AdminPeopleController_approveVerification",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/verifications/{userId}/reject": {
+      "post": {
+        "operationId": "AdminPeopleController_rejectVerification",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectVerificationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/staff": {
+      "get": {
+        "operationId": "AdminPeopleController_staff",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminPeopleController_addStaff",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddStaffDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/staff/{userId}/deactivate": {
+      "post": {
+        "operationId": "AdminPeopleController_deactivateStaff",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/staff/{userId}/reactivate": {
+      "post": {
+        "operationId": "AdminPeopleController_reactivateStaff",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -2935,6 +3909,14 @@
         "type": "object",
         "properties": {}
       },
+      "UpdatePreferencesDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {}
+      },
       "ApplyToCampaignDto": {
         "type": "object",
         "properties": {}
@@ -2951,6 +3933,10 @@
         "type": "object",
         "properties": {}
       },
+      "ManualViewsDto": {
+        "type": "object",
+        "properties": {}
+      },
       "RequestWithdrawalDto": {
         "type": "object",
         "properties": {}
@@ -2959,15 +3945,31 @@
         "type": "object",
         "properties": {}
       },
-      "SubscribeDto": {
+      "AssessEngagementDto": {
         "type": "object",
         "properties": {}
       },
-      "UpdatePreferencesDto": {
+      "FlagFraudDto": {
         "type": "object",
         "properties": {}
       },
       "IngestMetricsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CompleteConnectionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "StartConnectionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DeleteAccountDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SubscribeDto": {
         "type": "object",
         "properties": {}
       },
@@ -3010,14 +4012,6 @@
           "size"
         ]
       },
-      "AssessEngagementDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "FlagFraudDto": {
-        "type": "object",
-        "properties": {}
-      },
       "OpenDisputeDto": {
         "type": "object",
         "properties": {}
@@ -3026,7 +4020,19 @@
         "type": "object",
         "properties": {}
       },
+      "DisputeDecisionDto": {
+        "type": "object",
+        "properties": {}
+      },
       "CreateCategoryDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RejectVerificationDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AddStaffDto": {
         "type": "object",
         "properties": {}
       },

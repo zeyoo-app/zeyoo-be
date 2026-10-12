@@ -34,7 +34,10 @@ export class PlunkMailer extends Mailer {
     await this.send({
       to,
       subject: 'Your Zeyoo sign-in code',
-      body: codeBody('Use this code to sign in to Zeyoo, or to finish creating your account.', code),
+      body: codeBody(
+        'Use this code to sign in to Zeyoo, or to finish creating your account.',
+        code,
+      ),
     });
   }
 
@@ -81,7 +84,9 @@ export class PlunkMailer extends Mailer {
           `${payload.error?.code ? ` code=${payload.error.code}` : ''}` +
           ` senderDomain=${domainOf(from.email)}); recipient withheld.`,
       );
-      throw new ServiceUnavailableException('Could not send a verification code. Try again shortly.');
+      throw new ServiceUnavailableException(
+        'Could not send a verification code. Try again shortly.',
+      );
     }
   }
 
@@ -103,7 +108,10 @@ function domainOf(address: string): string {
   return address.slice(address.indexOf('@') + 1) || address;
 }
 
-/** Shared layout for both code emails — deliberately plain and unstyled. */function codeBody(leadIn: string, code: string): string {
+/** Shared layout for both code emails — deliberately plain and unstyled. */ function codeBody(
+  leadIn: string,
+  code: string,
+): string {
   return [
     `<p>${leadIn}</p>`,
     `<p style="font-size:28px;font-weight:700;letter-spacing:6px;margin:24px 0">${code}</p>`,

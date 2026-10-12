@@ -41,7 +41,10 @@ const TWILIO_KEYS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUM
             ? new TwilioSmsSender(config)
             : new LogSmsSender();
 
-        if (sender instanceof LogSmsSender && config.get('NODE_ENV', { infer: true }) === 'production') {
+        if (
+          sender instanceof LogSmsSender &&
+          config.get('NODE_ENV', { infer: true }) === 'production'
+        ) {
           throw new Error(
             `Refusing to start in production with the log SMS adapter (SMS_PROVIDER=${requested}). ` +
               'Set SMS_PROVIDER=twilio and provide TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER.',

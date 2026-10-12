@@ -3,10 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Env } from '@platform/config/env.schema';
 import { PrismaService } from '@platform/database/prisma.service';
-import { OrganizationService } from '@modules/iam/iam.public';
+import { CreatorProfileService } from '@modules/creators/creators.public';
+import { OrganizationService, UserService } from '@modules/iam/iam.public';
 import { PAYMENT_GATEWAY, PaymentGatewayPort } from '../domain/ports/payment-gateway.port';
 
 const DEFAULT_CURRENCY = 'USD';
+const DEFAULT_PAYOUT_COUNTRY = 'US';
 
 export interface MoneyView {
   minorUnits: number;
@@ -51,6 +53,8 @@ export class WalletService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly organizations: OrganizationService,
+    private readonly users: UserService,
+    private readonly profiles: CreatorProfileService,
     private readonly config: ConfigService<Env, true>,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGatewayPort,
   ) {}
@@ -121,13 +125,19 @@ export class WalletService {
       where: { account: { ownerType: 'ORGANIZATION', ownerId: organizationId } },
       orderBy: { createdAt: 'desc' },
       take: 200,
+      include: { transaction: { select: { type: true } } },
     });
     return entries.map((entry) => {
       const credit = entry.direction === 'CREDIT';
+      const refund = entry.transaction.type === 'CAMPAIGN_REFUND';
       return {
         id: entry.id,
         kind: credit ? 'topup' : 'campaign',
-        description: credit ? 'Campaign funding' : 'Creator payout',
+        description: refund
+          ? 'Unspent budget refunded'
+          : credit
+            ? 'Campaign funding'
+            : 'Creator payout',
         amount: money(credit ? entry.amount : -entry.amount, entry.currencyCode),
         date: entry.createdAt.toISOString(),
       };
@@ -151,8 +161,15 @@ export class WalletService {
   async connectPayout(creatorUserId: string): Promise<{ url: string }> {
     const appUrl = this.config.get('APP_WEB_URL', { infer: true });
     const existing = await this.prisma.payoutAccount.findUnique({ where: { creatorUserId } });
+    const [user, identity] = await Promise.all([
+      this.users.findById(creatorUserId),
+      this.profiles.payoutIdentity(creatorUserId),
+    ]);
     const onboarding = await this.gateway.createPayoutOnboarding({
       existingAccountId: existing?.stripeAccountId,
+      email: user?.email ?? null,
+      displayName: identity?.displayName ?? user?.email ?? 'Zeyoo creator',
+      country: (identity?.country ?? DEFAULT_PAYOUT_COUNTRY).toLowerCase(),
       returnUrl: `${appUrl}/creator/payout-method?payout=return`,
       refreshUrl: `${appUrl}/creator/payout-method?payout=refresh`,
       metadata: { creatorUserId },

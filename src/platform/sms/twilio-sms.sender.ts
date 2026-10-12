@@ -51,7 +51,9 @@ export class TwilioSmsSender extends SmsSender {
       this.logger.error(
         `Twilio rejected the message (status=${response.status}${code ? ` code=${code}` : ''}); destination withheld.`,
       );
-      throw new ServiceUnavailableException('Could not send a verification code. Try again shortly.');
+      throw new ServiceUnavailableException(
+        'Could not send a verification code. Try again shortly.',
+      );
     }
   }
 

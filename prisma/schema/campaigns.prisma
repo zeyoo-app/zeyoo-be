@@ -62,11 +62,18 @@ model Campaign {
   goals       String?
   audience    String?
   guidelines  String?
+  // Tags creators must include in their posts, stored with their # or @ prefix.
+  hashtags    String[] @default([])
+  mentions    String[] @default([])
+  // [{ name, url }] — links to briefs, assets or examples.
+  referenceMaterials Json @default("[]")
   coverImageUrl String?
 
+  // `platform` is the primary (first) platform; `platforms` is the full set creators may post on.
   platform   SocialPlatform
+  platforms  SocialPlatform[]
   contentType CampaignContentType @default(UGC)
-  visibility CampaignVisibility @default(PRIVATE)
+  visibility CampaignVisibility @default(PUBLIC)
   status     CampaignStatus     @default(DRAFT)
 
   startDate DateTime
@@ -76,6 +83,8 @@ model Campaign {
   budgetAmount Int // minor units
   rewardType   RewardType
   rewardAmount Int // minor units (per approved item, or per view)
+  // Most a single creator can earn from this campaign (minor units); null = no cap beyond the budget.
+  maxRewardPerCreatorAmount Int?
 
   publishedAt DateTime?
   closedAt    DateTime?

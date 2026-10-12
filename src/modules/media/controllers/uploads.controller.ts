@@ -1,24 +1,9 @@
-import {
-  Controller,
-  Post,
-  UploadedFile,
-  UseFilters,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Post, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiCreatedResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Principal } from '@platform/auth';
 import { IMAGE_MAX_BYTES } from '@platform/http/image-upload.constants';
-import {
-  acceptImageOnly,
-  ImageUploadExceptionFilter,
-} from '@platform/http/image-upload.filter';
+import { acceptImageOnly, ImageUploadExceptionFilter } from '@platform/http/image-upload.filter';
 import { Permission, RequirePermission } from '@platform/rbac';
 import { UploadedImageDto } from '../dto/media.dto';
 import { UploadsService } from '../services/uploads.service';

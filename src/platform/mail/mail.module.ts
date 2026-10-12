@@ -36,7 +36,10 @@ import { PlunkMailer } from './plunk.mailer';
             ? new PlunkMailer(config)
             : new LogMailer();
 
-        if (mailer instanceof LogMailer && config.get('NODE_ENV', { infer: true }) === 'production') {
+        if (
+          mailer instanceof LogMailer &&
+          config.get('NODE_ENV', { infer: true }) === 'production'
+        ) {
           throw new Error(
             `Refusing to start in production with the log mail adapter (MAIL_PROVIDER=${requested}). ` +
               'Set MAIL_PROVIDER=plunk and provide PLUNK_API_KEY.',

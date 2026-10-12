@@ -1,5 +1,6 @@
 import { PrismaClient, UserType } from '@prisma/client';
 import { seedCategories } from './seed-categories';
+import { seedPlans } from './seed-plans';
 
 const prisma = new PrismaClient();
 
@@ -22,6 +23,7 @@ async function seedAdmin(): Promise<void> {
 
 seedAdmin()
   .then(() => seedCategories(prisma))
+  .then(() => seedPlans(prisma))
   .then(() => prisma.$disconnect())
   .catch(async (error) => {
     console.error(error);

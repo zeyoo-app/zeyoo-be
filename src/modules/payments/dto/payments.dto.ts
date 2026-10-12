@@ -5,6 +5,8 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
 export const createFundingSchema = z.object({
   amountMinor: z.number().int().positive(),
+  // Which client is paying: decides where Stripe's return page sends the brand next.
+  client: z.enum(['web', 'app']).default('web'),
 });
 
 export const requestWithdrawalSchema = z.object({

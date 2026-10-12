@@ -6,7 +6,10 @@ const USERNAME_PATTERN = /^[a-z0-9._]{2,30}$/;
 
 const profileFields = z.object({
   displayName: z.string().min(2).max(80),
-  username: z.string().toLowerCase().regex(USERNAME_PATTERN, 'Use 2–30 letters, numbers, dots, or underscores.'),
+  username: z
+    .string()
+    .toLowerCase()
+    .regex(USERNAME_PATTERN, 'Use 2–30 letters, numbers, dots, or underscores.'),
   avatarUrl: z.string().url().optional(),
   headline: z.string().max(120).optional(),
   bio: z.string().max(2000).optional(),

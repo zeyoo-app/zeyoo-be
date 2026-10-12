@@ -1,10 +1,13 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Submission } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
 import { SubmitContentDto } from '../dto/submit-content.dto';
-import { SubmissionService, SubmissionWithRevisions } from '../services/submission.service';
+import {
+  SubmissionForReview,
+  SubmissionService,
+  SubmissionWithRevisions,
+} from '../services/submission.service';
 
 @ApiTags('submissions')
 @ApiBearerAuth()
@@ -27,7 +30,7 @@ export class CampaignSubmissionsController {
   list(
     @CurrentUser() principal: Principal,
     @Param('campaignId', ParseUUIDPipe) campaignId: string,
-  ): Promise<Submission[]> {
+  ): Promise<SubmissionForReview[]> {
     return this.submissions.listForCampaign(campaignId, principal.userId);
   }
 }

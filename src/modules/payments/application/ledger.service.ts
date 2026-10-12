@@ -24,6 +24,14 @@ export class LedgerService {
     ]);
   }
 
+  /** Returns unspent budget: the reverse of a funding posting. */
+  async recordRefund(organizationId: string, amount: Money, reference: string): Promise<void> {
+    await this.postBalanced('CAMPAIGN_REFUND', reference, [
+      { spec: this.orgAccount(organizationId, amount.currencyCode), direction: 'DEBIT', amount },
+      { spec: this.platformFundingSource(amount.currencyCode), direction: 'CREDIT', amount },
+    ]);
+  }
+
   async recordEarning(
     organizationId: string,
     creatorUserId: string,

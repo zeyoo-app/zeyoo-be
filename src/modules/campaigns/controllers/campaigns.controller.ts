@@ -23,8 +23,8 @@ export class CampaignsController {
   constructor(private readonly campaigns: CampaignService) {}
 
   @Get('discover')
-  discover(): Promise<Campaign[]> {
-    return this.campaigns.discoverPublic();
+  discover(@CurrentUser() principal: Principal): Promise<Campaign[]> {
+    return this.campaigns.discoverFor(principal.userId);
   }
 
   @Get(':campaignId')

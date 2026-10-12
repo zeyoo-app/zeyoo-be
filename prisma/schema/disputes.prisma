@@ -12,6 +12,7 @@ enum DisputeSubjectType {
   WITHDRAWAL
   SUBMISSION
   CAMPAIGN
+  FRAUD_CASE
   OTHER
 }
 

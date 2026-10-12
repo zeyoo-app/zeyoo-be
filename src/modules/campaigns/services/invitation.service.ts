@@ -4,9 +4,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Campaign, CampaignInvitation } from '@prisma/client';
+import { Campaign, CampaignInvitation, User } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { OrganizationService, UserService } from '@modules/iam/iam.public';
+import { CreatorProfileService, CreatorSummary } from '@modules/creators/creators.public';
+import { NotificationService } from '@modules/notifications/notifications.public';
+
+export type InvitationWithCreator = CampaignInvitation & {
+  creator: Pick<CreatorSummary, 'displayName' | 'username' | 'avatarUrl'> | null;
+};
+
+export interface InviteTarget {
+  creatorEmail?: string;
+  creatorUserId?: string;
+}
 
 @Injectable()
 export class InvitationService {
@@ -14,37 +25,62 @@ export class InvitationService {
     private readonly prisma: PrismaService,
     private readonly organizations: OrganizationService,
     private readonly users: UserService,
+    private readonly notifications: NotificationService,
+    private readonly profiles: CreatorProfileService,
   ) {}
 
   async invite(
     campaignId: string,
     requesterId: string,
-    creatorEmail: string,
+    target: InviteTarget,
   ): Promise<CampaignInvitation> {
     const campaign = await this.loadManageable(campaignId, requesterId);
     if (campaign.status === 'CLOSED') {
       throw new ConflictException('Cannot invite creators to a closed campaign.');
     }
 
-    const creator = await this.users.findByEmail(creatorEmail);
+    const creator = await this.findCreator(target);
     if (!creator) {
-      throw new NotFoundException('No user with this email exists.');
+      throw new NotFoundException('Creator not found.');
     }
     if (creator.type !== 'CREATOR') {
       throw new BadRequestException('Only creator accounts can be invited.');
     }
 
     await this.assertNotAlreadyInvited(campaignId, creator.id);
-    return this.prisma.campaignInvitation.create({
+    const invitation = await this.prisma.campaignInvitation.create({
       data: { campaignId, creatorUserId: creator.id, invitedByUserId: requesterId },
     });
+    await this.notifications.notify({
+      userId: creator.id,
+      type: 'CAMPAIGN_INVITE',
+      title: 'You have been invited to a campaign',
+      body: `You are invited to join "${campaign.title}".`,
+    });
+    return invitation;
   }
 
-  async listForCampaign(campaignId: string, requesterId: string): Promise<CampaignInvitation[]> {
+  async listForCampaign(campaignId: string, requesterId: string): Promise<InvitationWithCreator[]> {
     await this.loadManageable(campaignId, requesterId);
-    return this.prisma.campaignInvitation.findMany({
+    const invitations = await this.prisma.campaignInvitation.findMany({
       where: { campaignId },
       orderBy: { createdAt: 'desc' },
+    });
+    const creators = await this.profiles.summariesByUserIds(
+      invitations.map((invitation) => invitation.creatorUserId),
+    );
+    return invitations.map((invitation) => {
+      const creator = creators.get(invitation.creatorUserId);
+      return {
+        ...invitation,
+        creator: creator
+          ? {
+              displayName: creator.displayName,
+              username: creator.username,
+              avatarUrl: creator.avatarUrl,
+            }
+          : null,
+      };
     });
   }
 
@@ -74,6 +110,12 @@ export class InvitationService {
       where: { campaignId, creatorUserId, status: 'PENDING' },
       data: { status: 'ACCEPTED', respondedAt: new Date() },
     });
+  }
+
+  private findCreator({ creatorEmail, creatorUserId }: InviteTarget): Promise<User | null> {
+    return creatorUserId
+      ? this.users.findById(creatorUserId)
+      : this.users.findByEmail(creatorEmail!);
   }
 
   private async loadManageable(campaignId: string, requesterId: string): Promise<Campaign> {

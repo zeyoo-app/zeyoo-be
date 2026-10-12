@@ -48,7 +48,12 @@ function setup(status: Submission['status']): { service: ReviewService; mocks: M
   } as unknown as SubmissionService;
   const campaigns = { requireCampaign: mocks.requireCampaign } as unknown as CampaignService;
   const organizations = { assertMember: mocks.assertMember } as unknown as OrganizationService;
-  return { service: new ReviewService(prisma, submissions, campaigns, organizations), mocks };
+  return {
+    service: new ReviewService(prisma, submissions, campaigns, organizations, {
+      notify: jest.fn().mockResolvedValue(undefined),
+    } as never),
+    mocks,
+  };
 }
 
 describe('ReviewService.review', () => {

@@ -3,6 +3,7 @@ import { Submission } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { ApplicationService } from '@modules/applications/applications.public';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
+import { CreatorProfileService } from '@modules/creators/creators.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { SubmissionService } from './submission.service';
 
@@ -33,8 +34,9 @@ function setup(existingSubmission: Submission | null): {
   const applications = {
     hasApprovedApplication: mocks.hasApprovedApplication,
   } as unknown as ApplicationService;
+  const profiles = {} as unknown as CreatorProfileService;
   return {
-    service: new SubmissionService(prisma, campaigns, organizations, applications),
+    service: new SubmissionService(prisma, campaigns, organizations, applications, profiles),
     mocks,
   };
 }
@@ -78,5 +80,76 @@ describe('SubmissionService.resubmit', () => {
     await expect(service.resubmit('submission-1', 'creator-1', submitLink)).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+});
+
+describe('SubmissionService.listForCampaign', () => {
+  const REVIEW_LINK = {
+    contentType: 'LINK',
+    contentUrl: 'https://www.tiktok.com/@creator/video/7234567890123456789',
+  };
+
+  function buildForListing(
+    accounts: { platform: string; handle: string; verified: boolean }[],
+  ): SubmissionService {
+    const prisma = {
+      submission: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { ...buildSubmission({ status: 'APPROVED' }), revisions: [REVIEW_LINK] },
+          ]),
+      },
+    };
+    const campaigns = { requireCampaign: jest.fn().mockResolvedValue({ organizationId: 'org-1' }) };
+    const organizations = { assertMember: jest.fn().mockResolvedValue(undefined) };
+    const profiles = {
+      summariesByUserIds: jest
+        .fn()
+        .mockResolvedValue(
+          new Map([
+            ['creator-1', { displayName: 'Ada', username: 'ada', avatarUrl: null, accounts }],
+          ]),
+        ),
+    };
+    return new SubmissionService(
+      prisma as never,
+      campaigns as never,
+      organizations as never,
+      {} as never,
+      profiles as never,
+    );
+  }
+
+  it('names the creator instead of exposing only their id', async () => {
+    const service = buildForListing([]);
+
+    const [submission] = await service.listForCampaign('campaign-1', 'brand-user');
+
+    expect(submission.creator).toEqual({ displayName: 'Ada', username: 'ada', avatarUrl: null });
+  });
+
+  it('marks the post verified when the creator signed in to that platform', async () => {
+    const service = buildForListing([{ platform: 'TIKTOK', handle: 'ada', verified: true }]);
+
+    const [submission] = await service.listForCampaign('campaign-1', 'brand-user');
+
+    expect(submission.accountVerified).toBe(true);
+  });
+
+  it('leaves the post unverified when the creator only typed a handle', async () => {
+    const service = buildForListing([{ platform: 'TIKTOK', handle: 'ada', verified: false }]);
+
+    const [submission] = await service.listForCampaign('campaign-1', 'brand-user');
+
+    expect(submission.accountVerified).toBe(false);
+  });
+
+  it('leaves the post unverified when the verified account is on another platform', async () => {
+    const service = buildForListing([{ platform: 'INSTAGRAM', handle: 'ada', verified: true }]);
+
+    const [submission] = await service.listForCampaign('campaign-1', 'brand-user');
+
+    expect(submission.accountVerified).toBe(false);
   });
 });

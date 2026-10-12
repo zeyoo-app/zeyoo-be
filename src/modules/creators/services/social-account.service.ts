@@ -1,8 +1,15 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { SocialAccount } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { SocialAccount, SocialPlatform } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { ConnectSocialAccountDto } from '../dto/social-account.dto';
 import { CreatorProfileService } from './creator-profile.service';
+
+const VERIFIED_ONLY_PLATFORMS: SocialPlatform[] = ['INSTAGRAM', 'TIKTOK'];
 
 @Injectable()
 export class SocialAccountService {
@@ -12,20 +19,48 @@ export class SocialAccountService {
   ) {}
 
   // Connecting the same platform again reconnects it with the latest handle,
-  // rather than creating a duplicate (one account per platform per creator).
+  // rather than creating a duplicate (one account per platform per creator). A
+  // typed-in handle is only a claim, so it is never marked verified, and platforms
+  // that offer a sign-in must be connected through it instead.
   async connect(userId: string, dto: ConnectSocialAccountDto): Promise<SocialAccount> {
-    const profile = await this.profiles.getOwn(userId);
-    const connection = {
+    if (VERIFIED_ONLY_PLATFORMS.includes(dto.platform)) {
+      throw new BadRequestException(
+        `Connect ${dto.platform} by signing in to it, so the account can be verified.`,
+      );
+    }
+    return this.upsertAccount(userId, {
+      platform: dto.platform,
       handle: dto.handle,
       platformAccountId: dto.platformAccountId ?? null,
-      status: 'CONNECTED' as const,
-      connectedAt: new Date(),
-    };
+      verifiedAt: null,
+    });
+  }
+
+  /** Records an account the creator proved they own by authorising it on the platform. */
+  connectVerified(
+    userId: string,
+    account: { platform: SocialPlatform; handle: string; platformAccountId: string | null },
+  ): Promise<SocialAccount> {
+    return this.upsertAccount(userId, { ...account, verifiedAt: new Date() });
+  }
+
+  private async upsertAccount(
+    userId: string,
+    account: {
+      platform: SocialPlatform;
+      handle: string;
+      platformAccountId: string | null;
+      verifiedAt: Date | null;
+    },
+  ): Promise<SocialAccount> {
+    const profile = await this.profiles.getOwn(userId);
+    const { platform, ...details } = account;
+    const connection = { ...details, status: 'CONNECTED' as const, connectedAt: new Date() };
     return this.prisma.socialAccount.upsert({
       where: {
-        creatorProfileId_platform: { creatorProfileId: profile.id, platform: dto.platform },
+        creatorProfileId_platform: { creatorProfileId: profile.id, platform },
       },
-      create: { creatorProfileId: profile.id, platform: dto.platform, ...connection },
+      create: { creatorProfileId: profile.id, platform, ...connection },
       update: connection,
     });
   }

@@ -33,9 +33,7 @@ export class UploadsService {
     private readonly storage: ImageStorage,
     config: ConfigService<Env, true>,
   ) {
-    this.publicBaseUrl = config
-      .get('PUBLIC_ASSET_BASE_URL', { infer: true })
-      .replace(/\/+$/, '');
+    this.publicBaseUrl = config.get('PUBLIC_ASSET_BASE_URL', { infer: true }).replace(/\/+$/, '');
   }
 
   async storeImage(
@@ -47,9 +45,7 @@ export class UploadsService {
     }
     const extension = IMAGE_EXTENSIONS[file.mimetype];
     if (!extension) {
-      throw new BadRequestException(
-        'Images must be JPEG, PNG, WebP or HEIC.',
-      );
+      throw new BadRequestException('Images must be JPEG, PNG, WebP or HEIC.');
     }
 
     const key = `${randomUUID()}${extension}`;

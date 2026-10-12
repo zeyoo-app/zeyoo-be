@@ -1,10 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpStatus,
-} from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
 import { Response } from 'express';
 import { MulterError } from 'multer';
 
@@ -20,9 +15,7 @@ export class ImageUploadExceptionFilter implements ExceptionFilter {
   catch(exception: MulterError, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
     const tooLarge = exception.code === 'LIMIT_FILE_SIZE';
-    const status = tooLarge
-      ? HttpStatus.PAYLOAD_TOO_LARGE
-      : HttpStatus.BAD_REQUEST;
+    const status = tooLarge ? HttpStatus.PAYLOAD_TOO_LARGE : HttpStatus.BAD_REQUEST;
     const message = tooLarge
       ? `Images must be ${Math.floor(IMAGE_MAX_BYTES / (1024 * 1024))} MB or smaller.`
       : exception.code === 'LIMIT_UNEXPECTED_FILE'
