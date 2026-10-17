@@ -13,6 +13,8 @@ interface ErrorBody {
   statusCode: number;
   error: string;
   message: string | string[];
+  /** Present on rate-limit errors: how long until the same request can succeed. */
+  retryAfterSeconds?: number;
   path: string;
   timestamp: string;
 }
@@ -39,13 +41,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(`${request.method} ${request.url}`, exception as Error);
     }
 
+    const retryAfterSeconds = this.retryAfterOf(exception);
     const body: ErrorBody = {
       statusCode: status,
       error: HttpStatus[status] ?? 'ERROR',
       message,
+      ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
       path: request.url,
       timestamp: new Date().toISOString(),
     };
+    if (retryAfterSeconds !== undefined) {
+      response.setHeader('Retry-After', String(retryAfterSeconds));
+    }
     response.status(status).json(body);
   }
 
@@ -68,6 +75,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return { status: clientError.status, message: String(clientError.message) };
     }
     return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Internal server error.' };
+  }
+
+  private retryAfterOf(exception: unknown): number | undefined {
+    if (!(exception instanceof HttpException)) {
+      return undefined;
+    }
+    const payload = exception.getResponse();
+    const value =
+      typeof payload === 'object'
+        ? (payload as { retryAfterSeconds?: unknown }).retryAfterSeconds
+        : undefined;
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
   }
 
   private extractMessage(exception: HttpException): string | string[] {

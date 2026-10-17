@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadGatewayException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Env } from '@platform/config/env.schema';
@@ -50,6 +50,8 @@ export interface OrganizationTotals {
 /** Read models over the ledger for the wallet screens, plus creator payout onboarding. */
 @Injectable()
 export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly organizations: OrganizationService,
@@ -165,15 +167,24 @@ export class WalletService {
       this.users.findById(creatorUserId),
       this.profiles.payoutIdentity(creatorUserId),
     ]);
-    const onboarding = await this.gateway.createPayoutOnboarding({
-      existingAccountId: existing?.stripeAccountId,
-      email: user?.email ?? null,
-      displayName: identity?.displayName ?? user?.email ?? 'Zeyoo creator',
-      country: (identity?.country ?? DEFAULT_PAYOUT_COUNTRY).toLowerCase(),
-      returnUrl: `${appUrl}/creator/payout-method?payout=return`,
-      refreshUrl: `${appUrl}/creator/payout-method?payout=refresh`,
-      metadata: { creatorUserId },
-    });
+    const onboarding = await this.gateway
+      .createPayoutOnboarding({
+        existingAccountId: existing?.stripeAccountId,
+        email: user?.email ?? null,
+        displayName: identity?.displayName ?? user?.email ?? 'Zeyoo creator',
+        country: (identity?.country ?? DEFAULT_PAYOUT_COUNTRY).toLowerCase(),
+        returnUrl: `${appUrl}/creator/payout-method?payout=return`,
+        refreshUrl: `${appUrl}/creator/payout-method?payout=refresh`,
+        metadata: { creatorUserId },
+      })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Payout onboarding failed for creator ${creatorUserId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw new BadGatewayException(
+          'Payout setup is not available right now. Please try again shortly.',
+        );
+      });
     if (!existing) {
       await this.prisma.payoutAccount.create({
         data: { creatorUserId, stripeAccountId: onboarding.accountId },
