@@ -93,3 +93,22 @@ describe('CreatorProfileService.update', () => {
     );
   });
 });
+
+describe('CreatorProfileService.create', () => {
+  it('saves through an upsert so repeating setup updates the same profile', async () => {
+    const upsert = jest.fn().mockResolvedValue(buildProfile('UNVERIFIED'));
+    const prisma = { creatorProfile: { upsert } } as unknown as PrismaService;
+    const service = new CreatorProfileService(prisma, { notify: jest.fn() } as never);
+    const dto = { displayName: 'Creator One', username: 'creator.one' };
+
+    await service.create('user-1', dto);
+    await service.create('user-1', dto);
+
+    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(upsert).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      create: { ...dto, userId: 'user-1' },
+      update: dto,
+    });
+  });
+});

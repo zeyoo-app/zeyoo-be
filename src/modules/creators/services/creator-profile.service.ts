@@ -30,10 +30,15 @@ export class CreatorProfileService {
   ) {}
 
   // The caller already holds CreatorProfileManage, so the account is a creator.
+  // Idempotent: saving setup again (a retry, or going back and continuing) updates
+  // the profile that already exists instead of failing or creating a second one.
   async create(userId: string, dto: CreateCreatorProfileDto): Promise<CreatorProfile> {
-    await this.assertNoProfile(userId);
     return this.withUsernameConflict(() =>
-      this.prisma.creatorProfile.create({ data: { ...dto, userId } }),
+      this.prisma.creatorProfile.upsert({
+        where: { userId },
+        create: { ...dto, userId },
+        update: dto,
+      }),
     );
   }
 
@@ -177,16 +182,6 @@ export class CreatorProfileService {
         throw new ConflictException('That username is already taken.');
       }
       throw error;
-    }
-  }
-
-  private async assertNoProfile(userId: string): Promise<void> {
-    const existing = await this.prisma.creatorProfile.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-    if (existing) {
-      throw new ConflictException('A creator profile already exists for this account.');
     }
   }
 
