@@ -208,3 +208,174 @@ export const instagramOAuth: PlatformOAuth = {
     };
   },
 };
+
+interface GoogleTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+
+/**
+ * YouTube via Google OAuth: read-only access to the creator's own channel. `offline`
+ * access with a forced consent screen is what makes Google return a refresh token.
+ */
+export const youtubeOAuth: PlatformOAuth = {
+  platform: 'YOUTUBE',
+  authorizationUrl: (app, state) =>
+    `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
+      client_id: app.clientId,
+      redirect_uri: app.redirectUri,
+      response_type: 'code',
+      scope: 'https://www.googleapis.com/auth/youtube.readonly',
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: 'true',
+      state,
+    })}`,
+  async exchangeCode(fetchFn, app, code) {
+    const body = await fetchJson<GoogleTokenResponse>(
+      fetchFn,
+      GOOGLE_TOKEN_URL,
+      formBody({
+        client_id: app.clientId,
+        client_secret: app.clientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: app.redirectUri,
+      }),
+    );
+    return toGoogleTokens(body, null);
+  },
+  async describeAccount(fetchFn, tokens) {
+    const body = await fetchJson<{
+      items?: { id?: string; snippet?: { title?: string; customUrl?: string } }[];
+    }>(fetchFn, 'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    });
+    const channel = body.items?.[0];
+    if (!channel) {
+      throw new MetricsUnavailableError(
+        'UPSTREAM_ERROR',
+        'No YouTube channel is linked to that Google account.',
+      );
+    }
+    return {
+      externalAccountId: channel.id ?? null,
+      handle: channel.snippet?.customUrl ?? channel.snippet?.title ?? null,
+    };
+  },
+  async refresh(fetchFn, app, tokens) {
+    if (!tokens.refreshToken) {
+      return null;
+    }
+    const body = await fetchJson<GoogleTokenResponse>(
+      fetchFn,
+      GOOGLE_TOKEN_URL,
+      formBody({
+        client_id: app.clientId,
+        client_secret: app.clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: tokens.refreshToken,
+      }),
+    );
+    // Google does not send the refresh token again; keep the one we have.
+    return toGoogleTokens(body, tokens.refreshToken);
+  },
+};
+
+function toGoogleTokens(body: GoogleTokenResponse, keepRefreshToken: string | null): PlatformTokens {
+  if (!body.access_token) {
+    throw new MetricsUnavailableError('UPSTREAM_ERROR', 'Google did not return an access token.');
+  }
+  return {
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token ?? keepRefreshToken,
+    expiresAt: expiresInSeconds(body.expires_in),
+    externalAccountId: null,
+  };
+}
+
+interface SnapchatTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
+const SNAPCHAT_TOKEN_URL = 'https://accounts.snapchat.com/login/oauth2/access_token';
+
+const snapchatBasicAuth = (app: OAuthAppCredentials): string =>
+  `Basic ${Buffer.from(`${app.clientId}:${app.clientSecret}`).toString('base64')}`;
+
+/**
+ * Snapchat Login Kit: proves who the creator is (display name and external id). It
+ * does not expose view counts, so Snapchat views stay manual — see SnapchatMetricsAdapter.
+ */
+export const snapchatOAuth: PlatformOAuth = {
+  platform: 'SNAPCHAT',
+  authorizationUrl: (app, state) =>
+    `https://accounts.snapchat.com/accounts/oauth2/auth?${new URLSearchParams({
+      client_id: app.clientId,
+      redirect_uri: app.redirectUri,
+      response_type: 'code',
+      scope:
+        'https://auth.snapchat.com/oauth2/api/user.display_name https://auth.snapchat.com/oauth2/api/user.external_id',
+      state,
+    })}`,
+  async exchangeCode(fetchFn, app, code) {
+    const body = await fetchJson<SnapchatTokenResponse>(fetchFn, SNAPCHAT_TOKEN_URL, {
+      ...formBody({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: app.redirectUri,
+      }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: snapchatBasicAuth(app),
+      },
+    });
+    return toSnapchatTokens(body);
+  },
+  async describeAccount(fetchFn, tokens) {
+    const body = await fetchJson<{
+      data?: { me?: { displayName?: string; externalId?: string } };
+    }>(fetchFn, 'https://kit.snapchat.com/v1/me', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokens.accessToken}`,
+      },
+      body: JSON.stringify({ query: '{me{displayName externalId}}' }),
+    });
+    return {
+      externalAccountId: body.data?.me?.externalId ?? null,
+      handle: body.data?.me?.displayName ?? null,
+    };
+  },
+  async refresh(fetchFn, app, tokens) {
+    if (!tokens.refreshToken) {
+      return null;
+    }
+    const body = await fetchJson<SnapchatTokenResponse>(fetchFn, SNAPCHAT_TOKEN_URL, {
+      ...formBody({ grant_type: 'refresh_token', refresh_token: tokens.refreshToken }),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: snapchatBasicAuth(app),
+      },
+    });
+    return toSnapchatTokens(body);
+  },
+};
+
+function toSnapchatTokens(body: SnapchatTokenResponse): PlatformTokens {
+  if (!body.access_token) {
+    throw new MetricsUnavailableError('UPSTREAM_ERROR', 'Snapchat did not return an access token.');
+  }
+  return {
+    accessToken: body.access_token,
+    refreshToken: body.refresh_token ?? null,
+    expiresAt: expiresInSeconds(body.expires_in),
+    externalAccountId: null,
+  };
+}

@@ -13,7 +13,6 @@ import { CreatorCredentials } from '../domain/platform-metrics-adapter';
 import { FetchFn, HTTP_FETCH } from '../infrastructure/fetch-json';
 import {
   ConnectedAccount,
-  instagramOAuth,
   OAuthAppCredentials,
   PlatformOAuth,
   PlatformTokens,
@@ -38,7 +37,7 @@ interface OAuthState {
 }
 
 /**
- * Connects a creator's Instagram or TikTok account so their posts' metrics can be
+ * Connects a creator's Instagram, TikTok, YouTube or Snapchat account so their posts' metrics can be
  * read, and hands adapters a usable (refreshed, decrypted) token. Tokens are stored
  * encrypted; the OAuth `state` is signed and expires, binding the callback to the
  * creator who started it.
@@ -204,13 +203,17 @@ export class PlatformConnectionService {
   }
 
   private appCredentials(platform: SocialPlatform): OAuthAppCredentials {
-    const isInstagram = platform === instagramOAuth.platform;
-    const clientId = isInstagram
-      ? this.config.get('INSTAGRAM_APP_ID', { infer: true })
-      : this.config.get('TIKTOK_CLIENT_KEY', { infer: true });
-    const clientSecret = isInstagram
-      ? this.config.get('INSTAGRAM_APP_SECRET', { infer: true })
-      : this.config.get('TIKTOK_CLIENT_SECRET', { infer: true });
+    const keys: Partial<Record<SocialPlatform, [keyof Env, keyof Env]>> = {
+      INSTAGRAM: ['INSTAGRAM_APP_ID', 'INSTAGRAM_APP_SECRET'],
+      TIKTOK: ['TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET'],
+      YOUTUBE: ['YOUTUBE_OAUTH_CLIENT_ID', 'YOUTUBE_OAUTH_CLIENT_SECRET'],
+      SNAPCHAT: ['SNAPCHAT_CLIENT_ID', 'SNAPCHAT_CLIENT_SECRET'],
+    };
+    const [idKey, secretKey] = keys[platform] ?? [];
+    const clientId = idKey ? (this.config.get(idKey, { infer: true }) as string | undefined) : undefined;
+    const clientSecret = secretKey
+      ? (this.config.get(secretKey, { infer: true }) as string | undefined)
+      : undefined;
     const redirectUri = this.config.get('SOCIAL_OAUTH_REDIRECT_URI', { infer: true });
     if (!clientId || !clientSecret || !redirectUri || !this.vault.isAvailable()) {
       throw new ServiceUnavailableException(`Connecting ${platform} is not configured yet.`);

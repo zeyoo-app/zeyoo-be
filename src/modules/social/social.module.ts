@@ -10,7 +10,7 @@ import { CampaignMetricsController } from './controllers/campaign-metrics.contro
 import { PlatformConnectionsController } from './controllers/platform-connections.controller';
 import { PLATFORM_METRICS_ADAPTERS } from './domain/platform-metrics-adapter';
 import { HTTP_FETCH } from './infrastructure/fetch-json';
-import { instagramOAuth, tiktokOAuth } from './infrastructure/platform-oauth';
+import { instagramOAuth, snapchatOAuth, tiktokOAuth, youtubeOAuth } from './infrastructure/platform-oauth';
 import { InstagramMetricsAdapter } from './infrastructure/instagram-metrics.adapter';
 import { SnapchatMetricsAdapter } from './infrastructure/snapchat-metrics.adapter';
 import { TikTokMetricsAdapter } from './infrastructure/tiktok-metrics.adapter';
@@ -26,7 +26,7 @@ import { MetricService } from './services/metric.service';
     PlatformConnectionService,
     PlatformMetricsService,
     { provide: HTTP_FETCH, useValue: fetch },
-    { provide: 'PLATFORM_OAUTH_PROVIDERS', useValue: [instagramOAuth, tiktokOAuth] },
+    { provide: 'PLATFORM_OAUTH_PROVIDERS', useValue: [instagramOAuth, tiktokOAuth, youtubeOAuth, snapchatOAuth] },
     {
       provide: PLATFORM_METRICS_ADAPTERS,
       inject: [ConfigService, HTTP_FETCH],

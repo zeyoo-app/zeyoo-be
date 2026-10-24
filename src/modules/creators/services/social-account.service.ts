@@ -9,7 +9,7 @@ import { PrismaService } from '@platform/database/prisma.service';
 import { ConnectSocialAccountDto } from '../dto/social-account.dto';
 import { CreatorProfileService } from './creator-profile.service';
 
-const VERIFIED_ONLY_PLATFORMS: SocialPlatform[] = ['INSTAGRAM', 'TIKTOK'];
+const VERIFIED_ONLY_PLATFORMS: SocialPlatform[] = ['INSTAGRAM', 'TIKTOK', 'YOUTUBE', 'SNAPCHAT'];
 
 @Injectable()
 export class SocialAccountService {

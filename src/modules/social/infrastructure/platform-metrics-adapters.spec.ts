@@ -1,6 +1,7 @@
 import { PostReference } from '../domain/post-reference';
 import { MetricsUnavailableError } from '../domain/unified-metrics';
 import { InstagramMetricsAdapter } from './instagram-metrics.adapter';
+import { snapchatOAuth, youtubeOAuth } from './platform-oauth';
 import { TikTokMetricsAdapter } from './tiktok-metrics.adapter';
 import { XMetricsAdapter } from './x-metrics.adapter';
 import { YouTubeMetricsAdapter } from './youtube-metrics.adapter';
@@ -189,5 +190,60 @@ describe('InstagramMetricsAdapter', () => {
     ).rejects.toMatchObject({
       reason: 'POST_NOT_FOUND',
     });
+  });
+});
+
+describe('YouTube and Snapchat account connection', () => {
+  const app = { clientId: 'cid', clientSecret: 'secret', redirectUri: 'https://app/cb' };
+
+  it('asks Google for read-only YouTube access with a refresh token', () => {
+    const url = new URL(youtubeOAuth.authorizationUrl(app, 'st'));
+    expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
+    expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/youtube.readonly');
+    expect(url.searchParams.get('access_type')).toBe('offline');
+    expect(url.searchParams.get('state')).toBe('st');
+  });
+
+  it('describes the connected YouTube channel by its handle', async () => {
+    const fetchFn = jest.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ items: [{ id: 'UC1', snippet: { title: 'Chan', customUrl: '@chan' } }] }),
+        { status: 200 },
+      ),
+    );
+    const account = await youtubeOAuth.describeAccount(fetchFn, {
+      accessToken: 't',
+      refreshToken: null,
+      expiresAt: null,
+      externalAccountId: null,
+    });
+    expect(account).toEqual({ externalAccountId: 'UC1', handle: '@chan' });
+  });
+
+  it('rejects a Google account that has no YouTube channel', async () => {
+    const fetchFn = jest.fn().mockResolvedValue(new Response('{"items":[]}', { status: 200 }));
+    await expect(
+      youtubeOAuth.describeAccount(fetchFn, {
+        accessToken: 't',
+        refreshToken: null,
+        expiresAt: null,
+        externalAccountId: null,
+      }),
+    ).rejects.toThrow('No YouTube channel');
+  });
+
+  it('describes the connected Snapchat account by its display name', async () => {
+    const fetchFn = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { me: { displayName: 'Snappy', externalId: 'ext-1' } } }), {
+        status: 200,
+      }),
+    );
+    const account = await snapchatOAuth.describeAccount(fetchFn, {
+      accessToken: 't',
+      refreshToken: null,
+      expiresAt: null,
+      externalAccountId: null,
+    });
+    expect(account).toEqual({ externalAccountId: 'ext-1', handle: 'Snappy' });
   });
 });
