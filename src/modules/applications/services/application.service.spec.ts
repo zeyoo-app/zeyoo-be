@@ -2,7 +2,9 @@ import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { Application, Campaign } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CampaignService, InvitationService } from '@modules/campaigns/campaigns.public';
+import { CreatorProfileService } from '@modules/creators/creators.public';
 import { OrganizationService } from '@modules/iam/iam.public';
+import { NotificationService } from '@modules/notifications/notifications.public';
 import { ApplicationService } from './application.service';
 
 interface Mocks {
@@ -14,6 +16,7 @@ interface Mocks {
   create: jest.Mock;
   findApplication: jest.Mock;
   update: jest.Mock;
+  notify: jest.Mock;
 }
 
 function buildCampaign(overrides: Partial<Campaign> = {}): Campaign {
@@ -36,6 +39,7 @@ function setup(campaign: Campaign): { service: ApplicationService; mocks: Mocks 
     create: jest.fn().mockImplementation(({ data }) => Promise.resolve(data as Application)),
     findApplication: jest.fn(),
     update: jest.fn().mockResolvedValue({} as Application),
+    notify: jest.fn().mockResolvedValue(undefined),
   };
   const prisma = {
     application: {
@@ -53,9 +57,25 @@ function setup(campaign: Campaign): { service: ApplicationService; mocks: Mocks 
     hasPendingInvitation: mocks.hasPendingInvitation,
     markAccepted: mocks.markAccepted,
   } as unknown as InvitationService;
-  const organizations = { assertMember: mocks.assertMember } as unknown as OrganizationService;
+  const organizations = {
+    assertMember: mocks.assertMember,
+    memberUserIds: jest.fn().mockResolvedValue(['brand-owner', 'brand-editor']),
+  } as unknown as OrganizationService;
+  const notifications = { notify: mocks.notify } as unknown as NotificationService;
+  const profiles = {
+    summariesByUserIds: jest
+      .fn()
+      .mockResolvedValue(new Map([['creator-1', { displayName: 'Sara K.' }]])),
+  } as unknown as CreatorProfileService;
   return {
-    service: new ApplicationService(prisma, campaigns, invitations, organizations),
+    service: new ApplicationService(
+      prisma,
+      campaigns,
+      invitations,
+      organizations,
+      notifications,
+      profiles,
+    ),
     mocks,
   };
 }
@@ -70,6 +90,21 @@ describe('ApplicationService.apply', () => {
 
     expect(application.source).toBe('DIRECT');
     expect(mocks.markAccepted).not.toHaveBeenCalled();
+  });
+
+  it('tells every member of the brand team about the new application', async () => {
+    const { service, mocks } = setup(buildCampaign({ title: 'Summer' } as Partial<Campaign>));
+
+    await service.apply('campaign-1', 'creator-1', acceptTerms);
+
+    expect(mocks.notify).toHaveBeenCalledTimes(2);
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'brand-owner',
+        type: 'APPLICATION_RECEIVED',
+        body: 'Sara K. applied to "Summer".',
+      }),
+    );
   });
 
   it('creates an invitation application when the creator has a pending invite', async () => {
@@ -111,5 +146,25 @@ describe('ApplicationService.review', () => {
     });
 
     await expect(service.approve('app-1', 'brand-user')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('tells the creator when their application is approved', async () => {
+    const { service, mocks } = setup(buildCampaign({ title: 'Summer' } as Partial<Campaign>));
+    mocks.findApplication.mockResolvedValue({
+      id: 'app-1',
+      campaignId: 'campaign-1',
+      creatorUserId: 'creator-1',
+      status: 'PENDING',
+    });
+
+    await service.approve('app-1', 'brand-user');
+
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'creator-1',
+        type: 'APPLICATION_REVIEWED',
+        title: 'Your application was approved',
+      }),
+    );
   });
 });

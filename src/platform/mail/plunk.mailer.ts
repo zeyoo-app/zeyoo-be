@@ -41,6 +41,17 @@ export class PlunkMailer extends Mailer {
     });
   }
 
+  async sendNotification(to: string, subject: string, body: string): Promise<void> {
+    await this.send({
+      to,
+      subject,
+      body: [
+        `<p>${escapeHtml(body)}</p>`,
+        '<p style="color:#666">Open the Zeyoo app to see the details. You can turn email notifications off in Settings → Notifications.</p>',
+      ].join(''),
+    });
+  }
+
   /**
    * The code is the entire payload, so it is set in the email's own text rather
    * than a template. No unsubscribe link: this is transactional mail triggered by
@@ -118,4 +129,12 @@ function domainOf(address: string): string {
     '<p style="color:#666">This code expires in 10 minutes.</p>',
     '<p style="color:#666">If you did not request this, you can safely ignore this email.</p>',
   ].join('');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

@@ -54,6 +54,15 @@ export class OrganizationService {
     return this.prisma.organization.update({ where: { id: organizationId }, data: input });
   }
 
+  /** Every user in the organization, for notifying a brand's whole team. */
+  async memberUserIds(organizationId: string): Promise<string[]> {
+    const memberships = await this.prisma.membership.findMany({
+      where: { organizationId },
+      select: { userId: true },
+    });
+    return memberships.map((membership) => membership.userId);
+  }
+
   async isMember(organizationId: string, userId: string): Promise<boolean> {
     const membership = await this.prisma.membership.findUnique({
       where: { userId_organizationId: { userId, organizationId } },

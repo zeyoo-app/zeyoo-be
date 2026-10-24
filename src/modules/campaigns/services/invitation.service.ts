@@ -14,6 +14,13 @@ export type InvitationWithCreator = CampaignInvitation & {
   creator: Pick<CreatorSummary, 'displayName' | 'username' | 'avatarUrl'> | null;
 };
 
+export type InvitationWithCampaign = CampaignInvitation & {
+  campaign: Pick<
+    Campaign,
+    'id' | 'title' | 'platform' | 'currencyCode' | 'rewardType' | 'rewardAmount' | 'status'
+  >;
+};
+
 export interface InviteTarget {
   creatorEmail?: string;
   creatorUserId?: string;
@@ -93,6 +100,44 @@ export class InvitationService {
     await this.prisma.campaignInvitation.update({
       where: { id: invitation.id },
       data: { status: 'REVOKED', respondedAt: new Date() },
+    });
+  }
+
+  /** The creator's own invitations that are still waiting for an answer, newest first. */
+  listPendingForCreator(creatorUserId: string): Promise<InvitationWithCampaign[]> {
+    return this.prisma.campaignInvitation.findMany({
+      where: { creatorUserId, status: 'PENDING', campaign: { status: 'PUBLISHED' } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        campaign: {
+          select: {
+            id: true,
+            title: true,
+            platform: true,
+            currencyCode: true,
+            rewardType: true,
+            rewardAmount: true,
+            status: true,
+          },
+        },
+      },
+    });
+  }
+
+  /** The creator turns an invitation down; accepting is applying to the campaign. */
+  async decline(invitationId: string, creatorUserId: string): Promise<void> {
+    const invitation = await this.prisma.campaignInvitation.findUnique({
+      where: { id: invitationId },
+    });
+    if (!invitation || invitation.creatorUserId !== creatorUserId) {
+      throw new NotFoundException('Invitation not found.');
+    }
+    if (invitation.status !== 'PENDING') {
+      throw new ConflictException('Only a pending invitation can be declined.');
+    }
+    await this.prisma.campaignInvitation.update({
+      where: { id: invitation.id },
+      data: { status: 'DECLINED', respondedAt: new Date() },
     });
   }
 

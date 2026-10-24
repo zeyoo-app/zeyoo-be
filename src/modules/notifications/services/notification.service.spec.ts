@@ -6,6 +6,9 @@ interface Setup {
   invalidTokens?: string[];
   createFails?: boolean;
   payoutUpdates?: boolean;
+  emailEnabled?: boolean;
+  email?: string | null;
+  mailFails?: boolean;
 }
 
 function build({
@@ -14,17 +17,24 @@ function build({
   invalidTokens = [],
   createFails = false,
   payoutUpdates = true,
+  emailEnabled = true,
+  email = 'creator@example.com',
+  mailFails = false,
 }: Setup = {}): {
   service: NotificationService;
   send: jest.Mock;
   deleteTokens: jest.Mock;
   create: jest.Mock;
+  sendNotification: jest.Mock;
 } {
   const create = createFails
     ? jest.fn().mockRejectedValue(new Error('db down'))
     : jest.fn().mockResolvedValue({ id: 'n-1' });
   const deleteTokens = jest.fn().mockResolvedValue({ count: invalidTokens.length });
   const send = jest.fn().mockResolvedValue(invalidTokens);
+  const sendNotification = mailFails
+    ? jest.fn().mockRejectedValue(new Error('mail down'))
+    : jest.fn().mockResolvedValue(undefined);
   const prisma = {
     notification: { create },
     notificationPreference: {
@@ -33,6 +43,7 @@ function build({
           ? null
           : {
               pushEnabled,
+              emailEnabled,
               submissionUpdates: true,
               payoutUpdates,
               campaignInvites: true,
@@ -40,16 +51,18 @@ function build({
             },
       ),
     },
+    user: { findUnique: jest.fn().mockResolvedValue(email ? { email } : null) },
     deviceToken: {
       findMany: jest.fn().mockResolvedValue(tokens.map((token) => ({ token }))),
       deleteMany: deleteTokens,
     },
   };
   return {
-    service: new NotificationService(prisma as never, { send } as never),
+    service: new NotificationService(prisma as never, { send } as never, { sendNotification } as never),
     send,
     deleteTokens,
     create,
+    sendNotification,
   };
 }
 
@@ -120,5 +133,39 @@ describe('NotificationService.notify', () => {
     await service.notify({ ...NOTIFICATION, type: 'SYSTEM_NOTICE' });
 
     expect(create).toHaveBeenCalled();
+  });
+});
+
+describe('NotificationService.notify by email', () => {
+  it('emails the user the notification', async () => {
+    const { service, sendNotification } = build();
+
+    await service.notify(NOTIFICATION);
+
+    expect(sendNotification).toHaveBeenCalledWith('creator@example.com', 'You earned $5', 'Nice.');
+  });
+
+  it('does not email when the user turned email notifications off', async () => {
+    const { service, sendNotification } = build({ emailEnabled: false });
+
+    await service.notify(NOTIFICATION);
+
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('skips the email for an account with no email address (phone sign-in)', async () => {
+    const { service, sendNotification } = build({ email: null });
+
+    await service.notify(NOTIFICATION);
+
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('still pushes when the email cannot be sent', async () => {
+    const { service, send } = build({ mailFails: true });
+
+    await service.notify(NOTIFICATION);
+
+    expect(send).toHaveBeenCalled();
   });
 });
