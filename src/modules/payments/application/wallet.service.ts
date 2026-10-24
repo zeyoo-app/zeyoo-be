@@ -21,6 +21,12 @@ export interface WalletView {
   held: MoneyView;
   lifetimeEarned: MoneyView;
   payoutConnected: boolean;
+  /**
+   * Identity verification runs inside the payment provider's hosted onboarding (contract
+   * §1.5): `in_progress` once started, `verified` when the provider has checked the
+   * person and enabled payouts.
+   */
+  identityStatus: 'not_started' | 'in_progress' | 'verified';
 }
 
 export interface CreatorLedgerEntryView {
@@ -75,10 +81,18 @@ export class WalletService {
       pending: money(open.requested, currency),
       held: money(open.held, currency),
       lifetimeEarned: money(earned, currency),
-      payoutConnected: payoutAccount
-        ? await this.gateway.isPayoutAccountReady(payoutAccount.stripeAccountId)
-        : false,
+      ...(await this.payoutState(payoutAccount?.stripeAccountId ?? null)),
     };
+  }
+
+  private async payoutState(
+    stripeAccountId: string | null,
+  ): Promise<Pick<WalletView, 'payoutConnected' | 'identityStatus'>> {
+    if (!stripeAccountId) {
+      return { payoutConnected: false, identityStatus: 'not_started' };
+    }
+    const ready = await this.gateway.isPayoutAccountReady(stripeAccountId);
+    return { payoutConnected: ready, identityStatus: ready ? 'verified' : 'in_progress' };
   }
 
   async getCreatorLedger(creatorUserId: string): Promise<CreatorLedgerEntryView[]> {
