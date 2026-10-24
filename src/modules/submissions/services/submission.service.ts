@@ -104,10 +104,18 @@ export class SubmissionService {
     });
   }
 
+  // Reviews come along so the creator sees why changes were requested or it was rejected.
   listOwn(creatorUserId: string): Promise<SubmissionWithRevisions[]> {
     return this.prisma.submission.findMany({
       where: { creatorUserId },
-      include: { revisions: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        revisions: { orderBy: { createdAt: 'asc' } },
+        // Only what the creator needs: not who on the brand's team reviewed it.
+        reviews: {
+          orderBy: { createdAt: 'asc' },
+          select: { decision: true, note: true, createdAt: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
