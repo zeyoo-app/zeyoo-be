@@ -8,6 +8,7 @@ import { PaymentsModule } from '@modules/payments/payments.public';
 import { SubmissionsModule } from '@modules/submissions/submissions.public';
 import { AdminDisputesController } from './controllers/admin-disputes.controller';
 import { DisputesController } from './controllers/disputes.controller';
+import { DisputeEscalationScheduler } from './services/dispute-escalation.scheduler';
 import { DisputeService } from './services/dispute.service';
 
 @Module({
@@ -21,7 +22,7 @@ import { DisputeService } from './services/dispute.service';
     SubmissionsModule,
   ],
   controllers: [DisputesController, AdminDisputesController],
-  providers: [DisputeService],
+  providers: [DisputeService, DisputeEscalationScheduler],
   exports: [DisputeService],
 })
 export class DisputesModule {}
