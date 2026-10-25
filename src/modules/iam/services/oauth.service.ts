@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { OAuthProvider, User, UserType } from '@prisma/client';
+import { accountTypeRequired } from '../auth-errors';
 import { AuthTokens, TokenService } from './token.service';
 import { OAuthVerifier } from './oauth-verifier';
 import { UserService } from './user.service';
@@ -7,8 +8,9 @@ import { UserService } from './user.service';
 interface OAuthSignInInput {
   provider: OAuthProvider;
   idToken: string;
-  // Used only when this identity/email is new; ignored for returning users.
-  userType: UserType;
+  // Used only when this identity/email is new; ignored for returning users. Without it,
+  // a brand-new person is asked to choose rather than being made a creator by default.
+  userType?: UserType;
 }
 
 @Injectable()
@@ -55,7 +57,10 @@ export class OAuthService {
       }
     }
 
-    // 3. Brand new account.
+    // 3. Brand new account — only once they have said what kind.
+    if (!input.userType) {
+      throw accountTypeRequired();
+    }
     return this.users.createOAuthUser({
       email,
       type: input.userType,

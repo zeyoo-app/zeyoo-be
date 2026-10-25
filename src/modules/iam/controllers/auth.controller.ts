@@ -50,7 +50,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('email/code')
   async requestEmailCode(@Body() dto: RequestEmailCodeDto): Promise<{ message: string }> {
-    await this.auth.requestEmailCode(dto.email);
+    await this.auth.requestEmailCode(dto.email, dto.intent);
     return { message: `We sent a 6-digit code to ${maskEmail(dto.email)}.` };
   }
 
@@ -82,7 +82,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post('phone/code')
   async requestPhoneCode(@Body() dto: RequestPhoneCodeDto): Promise<{ message: string }> {
-    await this.auth.requestPhoneCode(dto.phone);
+    await this.auth.requestPhoneCode(dto.phone, dto.intent);
     return { message: 'We sent a 6-digit code by text message.' };
   }
 
@@ -110,7 +110,7 @@ export class AuthController {
     return this.oauth.signIn({
       provider: resolved,
       idToken: dto.idToken,
-      userType: dto.userType,
+      userType: dto.userType as UserType | undefined,
     });
   }
 }
