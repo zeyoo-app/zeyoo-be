@@ -55,7 +55,10 @@ function setup(campaign: Campaign): { service: CampaignService; mocks: Mocks } {
     findInvitation: jest.fn().mockResolvedValue(null),
   };
   const prisma = {
-    campaign: { findUnique: mocks.findUnique },
+    campaign: {
+      findUnique: mocks.findUnique,
+      update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...campaign, ...data })),
+    },
     campaignInvitation: { findFirst: mocks.findInvitation },
   } as unknown as PrismaService;
   const organizations = {
@@ -118,6 +121,47 @@ describe('CampaignService.getById visibility', () => {
 
     await expect(service.getById('campaign-1', 'outsider')).rejects.toBeInstanceOf(
       ForbiddenException,
+    );
+  });
+});
+
+describe('CampaignService.update on a live campaign', () => {
+  const live = buildCampaign({ status: 'PUBLISHED' });
+
+  it('lets the brand correct the wording and extend the end date', async () => {
+    const { service } = setup(live);
+
+    const updated = await service.update('campaign-1', 'user-1', {
+      description: 'Clearer brief',
+      goals: 'Awareness',
+      endDate: new Date('2026-03-01'),
+    });
+
+    expect(updated.description).toBe('Clearer brief');
+    expect(updated.endDate).toEqual(new Date('2026-03-01'));
+  });
+
+  it('keeps the money and reward terms creators applied on', async () => {
+    const { service } = setup(live);
+
+    await expect(
+      service.update('campaign-1', 'user-1', { rewardAmount: 1, budgetAmount: 10 }),
+    ).rejects.toThrow("A live campaign's terms cannot change (rewardAmount, budgetAmount)");
+  });
+
+  it('does not let the end date move earlier', async () => {
+    const { service } = setup(live);
+
+    await expect(
+      service.update('campaign-1', 'user-1', { endDate: new Date('2026-01-15') }),
+    ).rejects.toThrow('extended, not shortened');
+  });
+
+  it('refuses edits once the campaign is closed', async () => {
+    const { service } = setup(buildCampaign({ status: 'CLOSED' }));
+
+    await expect(service.update('campaign-1', 'user-1', { title: 'New' })).rejects.toThrow(
+      'closed campaign',
     );
   });
 });

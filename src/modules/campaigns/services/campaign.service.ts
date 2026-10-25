@@ -11,6 +11,21 @@ import { OrganizationService } from '@modules/iam/iam.public';
 import { CreateCampaignDto, UpdateCampaignDto } from '../dto/campaign.dto';
 import { CategoryService } from './category.service';
 
+/** What a brand may still change once creators can see and join the campaign. */
+const LIVE_EDITABLE = new Set([
+  'title',
+  'description',
+  'goals',
+  'audience',
+  'guidelines',
+  'hashtags',
+  'mentions',
+  'referenceMaterials',
+  'coverImageUrl',
+  'categoryId',
+  'endDate',
+]);
+
 @Injectable()
 export class CampaignService {
   constructor(
@@ -61,7 +76,7 @@ export class CampaignService {
 
   async update(campaignId: string, requesterId: string, dto: UpdateCampaignDto): Promise<Campaign> {
     const campaign = await this.loadManageable(campaignId, requesterId);
-    this.assertDraft(campaign);
+    this.assertEditable(campaign, dto);
     await this.ensureCategoryExists(dto.categoryId);
     this.assertSchedule(dto.startDate ?? campaign.startDate, dto.endDate ?? campaign.endDate);
     const platforms = dto.platforms ?? (dto.platform ? [dto.platform] : undefined);
@@ -162,6 +177,31 @@ export class CampaignService {
   private async ensureCategoryExists(categoryId: string | undefined): Promise<void> {
     if (categoryId) {
       await this.categories.assertExists(categoryId);
+    }
+  }
+
+  /**
+   * A draft can change freely. A live campaign keeps the terms creators applied on —
+   * money, reward, platforms, visibility, start — but its wording, requirements and
+   * materials can be corrected, and it can run longer (never shorter).
+   */
+  private assertEditable(campaign: Campaign, dto: UpdateCampaignDto): void {
+    if (campaign.status === 'DRAFT') {
+      return;
+    }
+    if (campaign.status !== 'PUBLISHED') {
+      throw new ConflictException('A closed campaign can no longer be edited.');
+    }
+    const locked = Object.keys(dto).filter(
+      (key) => dto[key as keyof UpdateCampaignDto] !== undefined && !LIVE_EDITABLE.has(key),
+    );
+    if (locked.length > 0) {
+      throw new ConflictException(
+        `A live campaign's terms cannot change (${locked.join(', ')}). Close it and create a new one instead.`,
+      );
+    }
+    if (dto.endDate && dto.endDate < campaign.endDate) {
+      throw new ConflictException('A live campaign can be extended, not shortened.');
     }
   }
 

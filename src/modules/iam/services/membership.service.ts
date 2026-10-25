@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Membership, OrgRole, User } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { Mailer } from '@platform/mail';
 import { OrganizationService } from './organization.service';
 import { UserService } from './user.service';
 
@@ -17,6 +18,7 @@ export class MembershipService {
     private readonly prisma: PrismaService,
     private readonly organizations: OrganizationService,
     private readonly users: UserService,
+    private readonly mailer: Mailer,
   ) {}
 
   async listMembers(organizationId: string, requesterId: string): Promise<MemberWithUser[]> {
@@ -28,6 +30,11 @@ export class MembershipService {
     });
   }
 
+  /**
+   * Adds a teammate by email. Someone without a Zeyoo account yet gets one, as a brand
+   * user, so they can sign in with that email straight away (passwordless: the emailed
+   * code is the credential). Either way they are emailed that they were added.
+   */
   async invite(
     organizationId: string,
     requesterId: string,
@@ -35,10 +42,14 @@ export class MembershipService {
     role: OrgRole,
   ): Promise<Membership> {
     await this.assertOwner(organizationId, requesterId);
+    const address = email.trim().toLowerCase();
 
-    const invitee = await this.users.findByEmail(email);
-    if (!invitee) {
-      throw new NotFoundException('No user with this email exists yet.');
+    const invitee =
+      (await this.users.findByEmail(address)) ?? (await this.users.createInvitedBrandUser(address));
+    if (invitee.type === 'CREATOR') {
+      throw new ConflictException(
+        'That email belongs to a creator account. Invite a different email for your team.',
+      );
     }
     const alreadyMember = await this.prisma.membership.findUnique({
       where: { userId_organizationId: { userId: invitee.id, organizationId } },
@@ -47,9 +58,27 @@ export class MembershipService {
     if (alreadyMember) {
       throw new ConflictException('This user is already a member.');
     }
-    return this.prisma.membership.create({
+    const membership = await this.prisma.membership.create({
       data: { organizationId, userId: invitee.id, role },
     });
+    await this.tellInvitee(organizationId, address);
+    return membership;
+  }
+
+  private async tellInvitee(organizationId: string, email: string): Promise<void> {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true },
+    });
+    try {
+      await this.mailer.sendNotification(
+        email,
+        `You were added to ${organization?.name ?? 'a brand'} on Zeyoo`,
+        `You can now manage ${organization?.name ?? 'the brand'}'s campaigns. Sign in to Zeyoo with this email address to get started.`,
+      );
+    } catch {
+      // The membership stands even if the email cannot go out; the owner sees the teammate listed.
+    }
   }
 
   async updateRole(

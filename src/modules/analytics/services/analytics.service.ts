@@ -85,4 +85,53 @@ export class AnalyticsService {
       })),
     };
   }
+
+  /**
+   * The campaign summary as a CSV file (contract §1.2, "downloadable basic campaign
+   * summary report"): the headline numbers, then one row per creator who earned on it.
+   */
+  async campaignReportCsv(campaignId: string, requesterId: string): Promise<string> {
+    const report = await this.campaignReport(campaignId, requesterId);
+    const earnings = await this.earnings.getCampaignEarnings(campaignId, requesterId);
+    const names = await this.profiles.summariesByUserIds(
+      earnings.creators.map((creator) => creator.creatorUserId),
+    );
+    const money = (minor: number | null): string =>
+      minor === null ? '' : (minor / MINOR_UNITS_PER_MAJOR).toFixed(2);
+    const rows: (string | number)[][] = [
+      ['Campaign', report.title],
+      ['Currency', report.currencyCode],
+      ['Budget', money(report.budgetMinor)],
+      ['Funded', money(report.fundedMinor)],
+      ['Paid to creators', money(report.spentMinor)],
+      ['Total views', report.totalViews],
+      ['Cost per 1,000 views', money(report.costPerThousandViewsMinor)],
+      ['Applications', report.applications.total],
+      ['Applications approved', report.applications.approved],
+      ['Submissions', report.submissions.total],
+      ['Submissions approved', report.submissions.approved],
+      [],
+      ['Creator', 'Views', 'Earned', 'Earnings paused'],
+      ...[...earnings.creators]
+        .sort((first, second) => second.views - first.views)
+        .map((creator) => [
+          names.get(creator.creatorUserId)?.displayName ?? 'Creator',
+          creator.views,
+          money(creator.accruedMinor),
+          creator.paused ? 'yes' : 'no',
+        ]),
+    ];
+    return rows.map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  }
+}
+
+const MINOR_UNITS_PER_MAJOR = 100;
+
+/** Quotes a value for CSV and neutralises spreadsheet formulas (a leading =, +, - or @). */
+function csvCell(value: string | number): string {
+  let text = String(value);
+  if (typeof value === 'string' && /^[=+\-@]/.test(text)) {
+    text = `'${text}`;
+  }
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

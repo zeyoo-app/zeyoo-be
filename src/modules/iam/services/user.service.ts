@@ -97,6 +97,16 @@ export class UserService {
     });
   }
 
+  /**
+   * An account for a teammate a brand owner invited by email. The address is not yet
+   * verified: their first sign-in with the emailed code proves the inbox and marks it.
+   */
+  createInvitedBrandUser(email: string): Promise<User> {
+    return this.prisma.user.create({
+      data: { email, type: 'BRAND_USER', status: 'ACTIVE' },
+    });
+  }
+
   /** Marks the address verified and activates the account (idempotent). */
   markEmailVerified(userId: string): Promise<User> {
     return this.prisma.user.update({
