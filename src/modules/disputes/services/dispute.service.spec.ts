@@ -218,7 +218,7 @@ describe('DisputeService.escalate', () => {
     );
   });
 
-  it("only lets the person who opened it escalate", async () => {
+  it('only lets the person who opened it escalate', async () => {
     const { service } = build({ dispute: { createdAt: FIVE_DAYS_AGO } });
 
     await expect(service.escalate('dispute-1', 'stranger')).rejects.toBeInstanceOf(

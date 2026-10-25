@@ -1,4 +1,5 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { HeadObjectCommand, NotFound, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Env } from '@platform/config/env.schema';
@@ -41,5 +42,37 @@ export class R2ImageStorage extends ImageStorage {
         CacheControl: 'public, max-age=31536000, immutable',
       }),
     );
+  }
+
+  presignPut(
+    key: string,
+    contentType: string,
+    size: number,
+    expiresInSeconds: number,
+  ): Promise<string> {
+    return getSignedUrl(
+      this.client,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: contentType,
+        ContentLength: size,
+      }),
+      // Content-Type and Content-Length are signed, so the upload must match what
+      // the creator declared: a different type or a bigger file is refused by R2.
+      { expiresIn: expiresInSeconds, signableHeaders: new Set(['content-type', 'content-length']) },
+    );
+  }
+
+  async stat(key: string): Promise<{ size: number; contentType: string | null } | null> {
+    try {
+      const head = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return { size: head.ContentLength ?? 0, contentType: head.ContentType ?? null };
+    } catch (error) {
+      if (error instanceof NotFound || (error as { name?: string }).name === 'NotFound') {
+        return null;
+      }
+      throw error;
+    }
   }
 }

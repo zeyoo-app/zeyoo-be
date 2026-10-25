@@ -13,7 +13,12 @@ import { NotificationService } from '@modules/notifications/notifications.public
 import { ApplyToCampaignDto } from '../dto/apply.dto';
 
 export type ApplicationWithCampaign = Application & {
-  campaign: { id: string; title: string; platform: Campaign['platform']; status: Campaign['status'] };
+  campaign: {
+    id: string;
+    title: string;
+    platform: Campaign['platform'];
+    status: Campaign['status'];
+  };
 };
 
 export type ApplicationWithCreator = Application & {
@@ -97,7 +102,10 @@ export class ApplicationService {
     });
   }
 
-  async listForCampaign(campaignId: string, requesterId: string): Promise<ApplicationWithCreator[]> {
+  async listForCampaign(
+    campaignId: string,
+    requesterId: string,
+  ): Promise<ApplicationWithCreator[]> {
     const campaign = await this.campaigns.requireCampaign(campaignId);
     await this.organizations.assertMember(campaign.organizationId, requesterId);
     const applications = await this.prisma.application.findMany({
@@ -148,7 +156,8 @@ export class ApplicationService {
     await this.notifications.notify({
       userId: application.creatorUserId,
       type: 'APPLICATION_REVIEWED',
-      title: outcome === 'APPROVED' ? 'Your application was approved' : 'Your application was declined',
+      title:
+        outcome === 'APPROVED' ? 'Your application was approved' : 'Your application was declined',
       body:
         outcome === 'APPROVED'
           ? `You can now submit content to "${campaign.title}".`

@@ -5,6 +5,7 @@ import { ApplicationService } from '@modules/applications/applications.public';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { CreatorProfileService } from '@modules/creators/creators.public';
 import { OrganizationService } from '@modules/iam/iam.public';
+import { UploadsService } from '@modules/media/media.public';
 import { SubmissionService } from './submission.service';
 
 interface Mocks {
@@ -12,6 +13,7 @@ interface Mocks {
   create: jest.Mock;
   update: jest.Mock;
   hasApprovedApplication: jest.Mock;
+  assertOwnReadyVideo: jest.Mock;
 }
 
 const submitLink = { contentType: 'LINK' as const, contentUrl: 'https://example.com/post' };
@@ -25,6 +27,7 @@ function setup(existingSubmission: Submission | null): {
     create: jest.fn(),
     update: jest.fn(),
     hasApprovedApplication: jest.fn().mockResolvedValue(true),
+    assertOwnReadyVideo: jest.fn().mockResolvedValue(undefined),
   };
   const prisma = {
     submission: { findUnique: mocks.findUnique, create: mocks.create, update: mocks.update },
@@ -36,7 +39,9 @@ function setup(existingSubmission: Submission | null): {
   } as unknown as ApplicationService;
   const profiles = {} as unknown as CreatorProfileService;
   return {
-    service: new SubmissionService(prisma, campaigns, organizations, applications, profiles),
+    service: new SubmissionService(prisma, campaigns, organizations, applications, profiles, {
+      assertOwnReadyVideo: mocks.assertOwnReadyVideo,
+    } as unknown as UploadsService),
     mocks,
   };
 }
@@ -62,6 +67,41 @@ describe('SubmissionService.submit', () => {
       ForbiddenException,
     );
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubmissionService.submit with an upload', () => {
+  const submitUpload = {
+    contentType: 'UPLOAD' as const,
+    contentUrl: 'https://cdn.test/videos/a.mp4',
+  };
+
+  it('checks the upload is a video the creator finished uploading', async () => {
+    const { service, mocks } = setup(null);
+    mocks.create.mockResolvedValue({ id: 'submission-1' });
+
+    await service.submit('campaign-1', 'creator-1', submitUpload);
+
+    expect(mocks.assertOwnReadyVideo).toHaveBeenCalledWith('creator-1', submitUpload.contentUrl);
+  });
+
+  it("refuses an upload that is not the creator's own finished video", async () => {
+    const { service, mocks } = setup(null);
+    mocks.assertOwnReadyVideo.mockRejectedValue(new Error('Upload the video first'));
+
+    await expect(service.submit('campaign-1', 'creator-1', submitUpload)).rejects.toThrow(
+      'Upload the video first',
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('does not check links against uploads', async () => {
+    const { service, mocks } = setup(null);
+    mocks.create.mockResolvedValue({ id: 'submission-1' });
+
+    await service.submit('campaign-1', 'creator-1', submitLink);
+
+    expect(mocks.assertOwnReadyVideo).not.toHaveBeenCalled();
   });
 });
 
@@ -118,6 +158,7 @@ describe('SubmissionService.listForCampaign', () => {
       organizations as never,
       {} as never,
       profiles as never,
+      {} as never,
     );
   }
 

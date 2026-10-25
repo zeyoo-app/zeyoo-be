@@ -210,7 +210,9 @@ export class PlatformConnectionService {
       SNAPCHAT: ['SNAPCHAT_CLIENT_ID', 'SNAPCHAT_CLIENT_SECRET'],
     };
     const [idKey, secretKey] = keys[platform] ?? [];
-    const clientId = idKey ? (this.config.get(idKey, { infer: true }) as string | undefined) : undefined;
+    const clientId = idKey
+      ? (this.config.get(idKey, { infer: true }) as string | undefined)
+      : undefined;
     const clientSecret = secretKey
       ? (this.config.get(secretKey, { infer: true }) as string | undefined)
       : undefined;

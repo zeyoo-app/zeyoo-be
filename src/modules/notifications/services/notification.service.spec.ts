@@ -58,7 +58,11 @@ function build({
     },
   };
   return {
-    service: new NotificationService(prisma as never, { send } as never, { sendNotification } as never),
+    service: new NotificationService(
+      prisma as never,
+      { send } as never,
+      { sendNotification } as never,
+    ),
     send,
     deleteTokens,
     create,

@@ -318,7 +318,10 @@ export class DisputeService {
   private responseState(
     dispute: Dispute,
     viewerId: string,
-  ): Pick<DisputeView, 'responseDueAt' | 'respondedAt' | 'escalatedAt' | 'overdue' | 'canEscalate'> {
+  ): Pick<
+    DisputeView,
+    'responseDueAt' | 'respondedAt' | 'escalatedAt' | 'overdue' | 'canEscalate'
+  > {
     // Disputes opened before deadlines existed get the same two business days from opening.
     const responseDueAt = dispute.responseDueAt ?? responseDueFor(dispute.createdAt);
     const overdue =
@@ -347,7 +350,10 @@ export class DisputeService {
     if (!this.responseState(dispute, userId).overdue) {
       throw new ConflictException('Support is still within its response time for this dispute.');
     }
-    await this.applyEscalation(dispute, 'Escalated: support has not replied within the response time.');
+    await this.applyEscalation(
+      dispute,
+      'Escalated: support has not replied within the response time.',
+    );
     return this.get(disputeId, userId, false);
   }
 
@@ -362,10 +368,14 @@ export class DisputeService {
       include: { events: { orderBy: { createdAt: 'asc' } } },
     });
     const overdue = candidates.filter(
-      (dispute) => (dispute.responseDueAt ?? responseDueFor(dispute.createdAt)).getTime() < Date.now(),
+      (dispute) =>
+        (dispute.responseDueAt ?? responseDueFor(dispute.createdAt)).getTime() < Date.now(),
     );
     for (const dispute of overdue) {
-      await this.applyEscalation(dispute, 'Escalated automatically: no reply within the response time.');
+      await this.applyEscalation(
+        dispute,
+        'Escalated automatically: no reply within the response time.',
+      );
     }
     return overdue.length;
   }

@@ -205,12 +205,16 @@ describe('YouTube and Snapchat account connection', () => {
   });
 
   it('describes the connected YouTube channel by its handle', async () => {
-    const fetchFn = jest.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ items: [{ id: 'UC1', snippet: { title: 'Chan', customUrl: '@chan' } }] }),
-        { status: 200 },
-      ),
-    );
+    const fetchFn = jest
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            items: [{ id: 'UC1', snippet: { title: 'Chan', customUrl: '@chan' } }],
+          }),
+          { status: 200 },
+        ),
+      );
     const account = await youtubeOAuth.describeAccount(fetchFn, {
       accessToken: 't',
       refreshToken: null,
@@ -234,9 +238,12 @@ describe('YouTube and Snapchat account connection', () => {
 
   it('describes the connected Snapchat account by its display name', async () => {
     const fetchFn = jest.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: { me: { displayName: 'Snappy', externalId: 'ext-1' } } }), {
-        status: 200,
-      }),
+      new Response(
+        JSON.stringify({ data: { me: { displayName: 'Snappy', externalId: 'ext-1' } } }),
+        {
+          status: 200,
+        },
+      ),
     );
     const account = await snapchatOAuth.describeAccount(fetchFn, {
       accessToken: 't',

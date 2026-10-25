@@ -285,7 +285,10 @@ export const youtubeOAuth: PlatformOAuth = {
   },
 };
 
-function toGoogleTokens(body: GoogleTokenResponse, keepRefreshToken: string | null): PlatformTokens {
+function toGoogleTokens(
+  body: GoogleTokenResponse,
+  keepRefreshToken: string | null,
+): PlatformTokens {
   if (!body.access_token) {
     throw new MetricsUnavailableError('UPSTREAM_ERROR', 'Google did not return an access token.');
   }

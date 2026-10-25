@@ -16,6 +16,7 @@ import { ApplicationService } from '@modules/applications/applications.public';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { CreatorProfileService, CreatorSummary } from '@modules/creators/creators.public';
+import { UploadsService } from '@modules/media/media.public';
 import { parsePostUrl } from '@modules/social/social.public';
 import { SubmitContentDto } from '../dto/submit-content.dto';
 
@@ -37,6 +38,7 @@ export class SubmissionService {
     private readonly organizations: OrganizationService,
     private readonly applications: ApplicationService,
     private readonly profiles: CreatorProfileService,
+    private readonly uploads: UploadsService,
   ) {}
 
   async submit(
@@ -46,6 +48,7 @@ export class SubmissionService {
   ): Promise<SubmissionWithRevisions> {
     await this.assertApprovedToSubmit(campaignId, creatorUserId);
     await this.assertNoExistingSubmission(campaignId, creatorUserId);
+    await this.assertUploadIsOwn(creatorUserId, dto);
     return this.prisma.submission.create({
       data: { campaignId, creatorUserId, revisions: { create: this.toRevisionData(dto) } },
       include: { revisions: true },
@@ -64,6 +67,7 @@ export class SubmissionService {
     if (submission.status !== 'NEEDS_CHANGES') {
       throw new ConflictException('A revision can only be submitted when changes are requested.');
     }
+    await this.assertUploadIsOwn(creatorUserId, dto);
     return this.prisma.submission.update({
       where: { id: submission.id },
       data: { status: 'PENDING', revisions: { create: this.toRevisionData(dto) } },
@@ -218,6 +222,13 @@ export class SubmissionService {
     const campaign = await this.campaigns.requireCampaign(submission.campaignId);
     if (!(await this.organizations.isMember(campaign.organizationId, requesterId))) {
       throw new ForbiddenException('You do not have access to this submission.');
+    }
+  }
+
+  /** An "upload" must be a video this creator uploaded through Zeyoo, not any URL. */
+  private async assertUploadIsOwn(creatorUserId: string, dto: SubmitContentDto): Promise<void> {
+    if (dto.contentType === 'UPLOAD') {
+      await this.uploads.assertOwnReadyVideo(creatorUserId, dto.contentUrl);
     }
   }
 
