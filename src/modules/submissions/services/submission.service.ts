@@ -17,6 +17,7 @@ import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { CreatorProfileService, CreatorSummary } from '@modules/creators/creators.public';
 import { UploadsService } from '@modules/media/media.public';
+import { NotificationService } from '@modules/notifications/notifications.public';
 import { parsePostUrl } from '@modules/social/social.public';
 import { SubmitContentDto } from '../dto/submit-content.dto';
 
@@ -39,6 +40,7 @@ export class SubmissionService {
     private readonly applications: ApplicationService,
     private readonly profiles: CreatorProfileService,
     private readonly uploads: UploadsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async submit(
@@ -49,10 +51,12 @@ export class SubmissionService {
     await this.assertApprovedToSubmit(campaignId, creatorUserId);
     await this.assertNoExistingSubmission(campaignId, creatorUserId);
     await this.assertUploadIsOwn(creatorUserId, dto);
-    return this.prisma.submission.create({
+    const created = await this.prisma.submission.create({
       data: { campaignId, creatorUserId, revisions: { create: this.toRevisionData(dto) } },
       include: { revisions: true },
     });
+    await this.tellBrandTeam(campaignId, creatorUserId, 'submitted content to');
+    return created;
   }
 
   async resubmit(
@@ -68,11 +72,34 @@ export class SubmissionService {
       throw new ConflictException('A revision can only be submitted when changes are requested.');
     }
     await this.assertUploadIsOwn(creatorUserId, dto);
-    return this.prisma.submission.update({
+    const revised = await this.prisma.submission.update({
       where: { id: submission.id },
       data: { status: 'PENDING', revisions: { create: this.toRevisionData(dto) } },
       include: { revisions: true },
     });
+    await this.tellBrandTeam(submission.campaignId, creatorUserId, 'sent a revision for');
+    return revised;
+  }
+
+  /** New content to review is news for everyone on the brand's team (contract §1.6). */
+  private async tellBrandTeam(
+    campaignId: string,
+    creatorUserId: string,
+    action: string,
+  ): Promise<void> {
+    const campaign = await this.campaigns.requireCampaign(campaignId);
+    const [summary] = (await this.profiles.summariesByUserIds([creatorUserId])).values();
+    const memberIds = await this.organizations.memberUserIds(campaign.organizationId);
+    await Promise.all(
+      memberIds.map((userId) =>
+        this.notifications.notify({
+          userId,
+          type: 'SUBMISSION_RECEIVED',
+          title: 'New submission to review',
+          body: `${summary?.displayName ?? 'A creator'} ${action} "${campaign.title}".`,
+        }),
+      ),
+    );
   }
 
   async getById(submissionId: string, requesterId: string): Promise<SubmissionDetail> {

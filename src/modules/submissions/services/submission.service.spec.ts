@@ -6,6 +6,7 @@ import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { CreatorProfileService } from '@modules/creators/creators.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { UploadsService } from '@modules/media/media.public';
+import { NotificationService } from '@modules/notifications/notifications.public';
 import { SubmissionService } from './submission.service';
 
 interface Mocks {
@@ -14,6 +15,7 @@ interface Mocks {
   update: jest.Mock;
   hasApprovedApplication: jest.Mock;
   assertOwnReadyVideo: jest.Mock;
+  notify: jest.Mock;
 }
 
 const submitLink = { contentType: 'LINK' as const, contentUrl: 'https://example.com/post' };
@@ -28,20 +30,37 @@ function setup(existingSubmission: Submission | null): {
     update: jest.fn(),
     hasApprovedApplication: jest.fn().mockResolvedValue(true),
     assertOwnReadyVideo: jest.fn().mockResolvedValue(undefined),
+    notify: jest.fn().mockResolvedValue(undefined),
   };
   const prisma = {
     submission: { findUnique: mocks.findUnique, create: mocks.create, update: mocks.update },
   } as unknown as PrismaService;
-  const campaigns = {} as unknown as CampaignService;
-  const organizations = {} as unknown as OrganizationService;
+  const campaigns = {
+    requireCampaign: jest
+      .fn()
+      .mockResolvedValue({ id: 'campaign-1', title: 'Summer', organizationId: 'org-1' }),
+  } as unknown as CampaignService;
+  const organizations = {
+    memberUserIds: jest.fn().mockResolvedValue(['brand-owner']),
+  } as unknown as OrganizationService;
   const applications = {
     hasApprovedApplication: mocks.hasApprovedApplication,
   } as unknown as ApplicationService;
-  const profiles = {} as unknown as CreatorProfileService;
+  const profiles = {
+    summariesByUserIds: jest
+      .fn()
+      .mockResolvedValue(new Map([['creator-1', { displayName: 'Ada' }]])),
+  } as unknown as CreatorProfileService;
   return {
-    service: new SubmissionService(prisma, campaigns, organizations, applications, profiles, {
-      assertOwnReadyVideo: mocks.assertOwnReadyVideo,
-    } as unknown as UploadsService),
+    service: new SubmissionService(
+      prisma,
+      campaigns,
+      organizations,
+      applications,
+      profiles,
+      { assertOwnReadyVideo: mocks.assertOwnReadyVideo } as unknown as UploadsService,
+      { notify: mocks.notify } as unknown as NotificationService,
+    ),
     mocks,
   };
 }
@@ -93,6 +112,21 @@ describe('SubmissionService.submit with an upload', () => {
       'Upload the video first',
     );
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('tells the brand team there is new content to review', async () => {
+    const { service, mocks } = setup(null);
+    mocks.create.mockResolvedValue({ id: 'submission-1' });
+
+    await service.submit('campaign-1', 'creator-1', submitLink);
+
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'brand-owner',
+        type: 'SUBMISSION_RECEIVED',
+        body: 'Ada submitted content to "Summer".',
+      }),
+    );
   });
 
   it('does not check links against uploads', async () => {
@@ -158,6 +192,7 @@ describe('SubmissionService.listForCampaign', () => {
       organizations as never,
       {} as never,
       profiles as never,
+      {} as never,
       {} as never,
     );
   }

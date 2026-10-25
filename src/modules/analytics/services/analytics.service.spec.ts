@@ -47,3 +47,20 @@ describe('AnalyticsService.campaignReport', () => {
     expect(report.costPerThousandViewsMinor).toBeNull();
   });
 });
+
+describe('AnalyticsService.campaignReportCsv', () => {
+  it('writes the summary then one row per creator, busiest first', async () => {
+    const csv = await build(10_000, 5_000).campaignReportCsv('campaign-1', 'brand-user');
+    const lines = csv.trim().split('\r\n');
+
+    expect(lines[0]).toBe('Campaign,Summer');
+    expect(lines).toContain('Budget,1000.00');
+    expect(lines).toContain('Paid to creators,50.00');
+    expect(lines).toContain('"Cost per 1,000 views",5.00');
+    expect(lines.slice(-3)).toEqual([
+      'Creator,Views,Earned,Earnings paused',
+      'Bea,900,0.90,yes',
+      'Creator,100,0.10,no',
+    ]);
+  });
+});

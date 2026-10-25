@@ -15,6 +15,7 @@ const CATEGORY_BY_TYPE: Record<string, keyof CategoryPreferences> = {
   WITHDRAWAL_REJECTED: 'payoutUpdates',
   WITHDRAWAL_PAID: 'payoutUpdates',
   APPLICATION_RECEIVED: 'submissionUpdates',
+  SUBMISSION_RECEIVED: 'submissionUpdates',
   APPLICATION_REVIEWED: 'submissionUpdates',
   VERIFICATION_REVIEWED: 'submissionUpdates',
 };
