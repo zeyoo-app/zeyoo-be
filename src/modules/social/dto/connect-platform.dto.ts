@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-export const platformParamSchema = z.enum(['TIKTOK', 'INSTAGRAM']);
+export const platformParamSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'YOUTUBE', 'SNAPCHAT']);
 
 export const startConnectionSchema = z.object({
   // 'app' makes the callback page hand the code back to the mobile app.

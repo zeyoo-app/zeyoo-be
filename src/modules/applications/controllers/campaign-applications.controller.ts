@@ -4,7 +4,7 @@ import { Application } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
 import { ApplyToCampaignDto } from '../dto/apply.dto';
-import { ApplicationService } from '../services/application.service';
+import { ApplicationService, ApplicationWithCreator } from '../services/application.service';
 
 @ApiTags('applications')
 @ApiBearerAuth()
@@ -27,7 +27,7 @@ export class CampaignApplicationsController {
   list(
     @CurrentUser() principal: Principal,
     @Param('campaignId', ParseUUIDPipe) campaignId: string,
-  ): Promise<Application[]> {
+  ): Promise<ApplicationWithCreator[]> {
     return this.applications.listForCampaign(campaignId, principal.userId);
   }
 }

@@ -18,6 +18,7 @@ function build({
   notify: jest.Mock;
   updateDispute: jest.Mock;
   getById: jest.Mock;
+  transaction: jest.Mock;
 } {
   const record = {
     id: 'dispute-1',
@@ -26,6 +27,9 @@ function build({
     subjectId: 'submission-1',
     reason: 'Unfair rejection',
     status: 'OPEN',
+    responseDueAt: null,
+    respondedAt: null,
+    escalatedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     events: [],
@@ -37,6 +41,7 @@ function build({
       create: jest.fn().mockResolvedValue(record),
       findFirst: jest.fn().mockResolvedValue(activeExisting ? { id: 'old' } : null),
       findUnique: jest.fn().mockResolvedValue(record),
+      findMany: jest.fn().mockResolvedValue([record]),
       update: updateDispute,
     },
     disputeEvent: { create: jest.fn().mockResolvedValue({}) },
@@ -68,7 +73,15 @@ function build({
     { summariesByUserIds: jest.fn().mockResolvedValue(new Map()) } as never,
     { notify } as never,
   );
-  return { service, overrideAsAdmin, closeAsAdmin, notify, updateDispute, getById };
+  return {
+    service,
+    overrideAsAdmin,
+    closeAsAdmin,
+    notify,
+    updateDispute,
+    getById,
+    transaction: prisma.$transaction,
+  };
 }
 
 describe('DisputeService.open', () => {
@@ -164,5 +177,68 @@ describe('DisputeService.decide', () => {
     await expect(
       service.decide('dispute-1', 'admin-1', { outcome: 'UPHELD', note: 'Fine.' }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+const FIVE_DAYS_AGO = new Date(Date.now() - 5 * 24 * 60 * 60 * 1_000);
+
+describe('DisputeService.escalate', () => {
+  it('escalates an unanswered dispute that is past its response time', async () => {
+    const { service, notify, transaction } = build({ dispute: { createdAt: FIVE_DAYS_AGO } });
+
+    await service.escalate('dispute-1', 'creator-1');
+
+    expect(transaction).toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'admin-1', type: 'DISPUTE_ESCALATED' }),
+    );
+  });
+
+  it('refuses while support is still within its response time', async () => {
+    const { service } = build();
+
+    await expect(service.escalate('dispute-1', 'creator-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('refuses once support has replied', async () => {
+    const { service } = build({ dispute: { createdAt: FIVE_DAYS_AGO, respondedAt: new Date() } });
+
+    await expect(service.escalate('dispute-1', 'creator-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('refuses to escalate twice', async () => {
+    const { service } = build({ dispute: { createdAt: FIVE_DAYS_AGO, escalatedAt: new Date() } });
+
+    await expect(service.escalate('dispute-1', 'creator-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('only lets the person who opened it escalate', async () => {
+    const { service } = build({ dispute: { createdAt: FIVE_DAYS_AGO } });
+
+    await expect(service.escalate('dispute-1', 'stranger')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});
+
+describe('DisputeService.escalateOverdue', () => {
+  it('escalates the unanswered disputes past their deadline', async () => {
+    const { service, transaction } = build({ dispute: { createdAt: FIVE_DAYS_AGO } });
+
+    await expect(service.escalateOverdue()).resolves.toBe(1);
+    expect(transaction).toHaveBeenCalled();
+  });
+
+  it('leaves a dispute alone while it is within its response time', async () => {
+    const { service, transaction } = build();
+
+    await expect(service.escalateOverdue()).resolves.toBe(0);
+    expect(transaction).not.toHaveBeenCalled();
   });
 });

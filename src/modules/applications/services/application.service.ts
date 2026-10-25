@@ -7,8 +7,23 @@ import {
 import { Application, ApplicationStatus, Campaign } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CampaignService, InvitationService } from '@modules/campaigns/campaigns.public';
+import { CreatorProfileService, CreatorSummary } from '@modules/creators/creators.public';
 import { OrganizationService } from '@modules/iam/iam.public';
+import { NotificationService } from '@modules/notifications/notifications.public';
 import { ApplyToCampaignDto } from '../dto/apply.dto';
+
+export type ApplicationWithCampaign = Application & {
+  campaign: {
+    id: string;
+    title: string;
+    platform: Campaign['platform'];
+    status: Campaign['status'];
+  };
+};
+
+export type ApplicationWithCreator = Application & {
+  creator: Pick<CreatorSummary, 'displayName' | 'username' | 'avatarUrl'> | null;
+};
 
 type ReviewOutcome = Extract<ApplicationStatus, 'APPROVED' | 'DECLINED'>;
 
@@ -19,6 +34,8 @@ export class ApplicationService {
     private readonly campaigns: CampaignService,
     private readonly invitations: InvitationService,
     private readonly organizations: OrganizationService,
+    private readonly notifications: NotificationService,
+    private readonly profiles: CreatorProfileService,
   ) {}
 
   async apply(
@@ -43,13 +60,15 @@ export class ApplicationService {
     if (fromInvitation) {
       await this.invitations.markAccepted(campaignId, creatorUserId);
     }
+    await this.tellBrandTeam(campaign, creatorUserId);
     return application;
   }
 
-  listOwn(creatorUserId: string): Promise<Application[]> {
+  listOwn(creatorUserId: string): Promise<ApplicationWithCampaign[]> {
     return this.prisma.application.findMany({
       where: { creatorUserId },
       orderBy: { createdAt: 'desc' },
+      include: { campaign: { select: { id: true, title: true, platform: true, status: true } } },
     });
   }
 
@@ -83,12 +102,31 @@ export class ApplicationService {
     });
   }
 
-  async listForCampaign(campaignId: string, requesterId: string): Promise<Application[]> {
+  async listForCampaign(
+    campaignId: string,
+    requesterId: string,
+  ): Promise<ApplicationWithCreator[]> {
     const campaign = await this.campaigns.requireCampaign(campaignId);
     await this.organizations.assertMember(campaign.organizationId, requesterId);
-    return this.prisma.application.findMany({
+    const applications = await this.prisma.application.findMany({
       where: { campaignId },
       orderBy: { createdAt: 'desc' },
+    });
+    const creators = await this.profiles.summariesByUserIds(
+      applications.map((application) => application.creatorUserId),
+    );
+    return applications.map((application) => {
+      const creator = creators.get(application.creatorUserId);
+      return {
+        ...application,
+        creator: creator
+          ? {
+              displayName: creator.displayName,
+              username: creator.username,
+              avatarUrl: creator.avatarUrl,
+            }
+          : null,
+      };
     });
   }
 
@@ -111,10 +149,38 @@ export class ApplicationService {
     if (application.status !== 'PENDING') {
       throw new ConflictException('Only a pending application can be reviewed.');
     }
-    return this.prisma.application.update({
+    const decided = await this.prisma.application.update({
       where: { id: application.id },
       data: { status: outcome, decidedByUserId: requesterId, decidedAt: new Date() },
     });
+    await this.notifications.notify({
+      userId: application.creatorUserId,
+      type: 'APPLICATION_REVIEWED',
+      title:
+        outcome === 'APPROVED' ? 'Your application was approved' : 'Your application was declined',
+      body:
+        outcome === 'APPROVED'
+          ? `You can now submit content to "${campaign.title}".`
+          : `The brand did not approve your application to "${campaign.title}".`,
+    });
+    return decided;
+  }
+
+  /** A new application is news for everyone on the brand's team who can review it. */
+  private async tellBrandTeam(campaign: Campaign, creatorUserId: string): Promise<void> {
+    const [summary] = (await this.profiles.summariesByUserIds([creatorUserId])).values();
+    const name = summary?.displayName ?? 'A creator';
+    const memberIds = await this.organizations.memberUserIds(campaign.organizationId);
+    await Promise.all(
+      memberIds.map((userId) =>
+        this.notifications.notify({
+          userId,
+          type: 'APPLICATION_RECEIVED',
+          title: 'New application',
+          body: `${name} applied to "${campaign.title}".`,
+        }),
+      ),
+    );
   }
 
   private assertOpenForApplications(campaign: Campaign): void {

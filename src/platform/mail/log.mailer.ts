@@ -14,4 +14,8 @@ export class LogMailer extends Mailer {
   async sendSignInCode(to: string, code: string): Promise<void> {
     this.logger.log(`[sign-in] to=${to} code=${code}`);
   }
+
+  async sendNotification(to: string, subject: string, body: string): Promise<void> {
+    this.logger.log(`[notification] to=${to} subject="${subject}" body="${body}"`);
+  }
 }

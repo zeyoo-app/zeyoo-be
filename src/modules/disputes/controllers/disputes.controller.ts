@@ -41,4 +41,12 @@ export class DisputesController {
   ): Promise<DisputeView> {
     return this.disputes.addMessage(disputeId, principal.userId, isAdmin(principal), dto);
   }
+
+  @Post(':disputeId/escalate')
+  escalate(
+    @CurrentUser() principal: Principal,
+    @Param('disputeId', ParseUUIDPipe) disputeId: string,
+  ): Promise<DisputeView> {
+    return this.disputes.escalate(disputeId, principal.userId);
+  }
 }

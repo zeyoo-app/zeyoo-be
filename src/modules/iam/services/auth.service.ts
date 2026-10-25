@@ -189,7 +189,13 @@ export class AuthService {
       select: { createdAt: true },
     })) as { createdAt: Date } | null;
     if (last && now - last.createdAt.getTime() < RESEND_COOLDOWN_MS) {
-      throw new TooManyRequestsException('Please wait before requesting another code.');
+      const retryAfterSeconds = Math.ceil(
+        (RESEND_COOLDOWN_MS - (now - last.createdAt.getTime())) / 1000,
+      );
+      throw new TooManyRequestsException(
+        `Please wait ${retryAfterSeconds} ${retryAfterSeconds === 1 ? 'second' : 'seconds'} before requesting another code.`,
+        retryAfterSeconds,
+      );
     }
   }
 

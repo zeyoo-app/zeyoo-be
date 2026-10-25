@@ -13,6 +13,7 @@ import { OrganizationService, UserService } from '@modules/iam/iam.public';
 import { NotificationService } from '@modules/notifications/notifications.public';
 import { WithdrawalService } from '@modules/payments/payments.public';
 import { ReviewService, SubmissionService } from '@modules/submissions/submissions.public';
+import { responseDueFor } from '../domain/response-deadline';
 import { DisputeDecisionDto, DisputeMessageDto, OpenDisputeDto } from '../dto/dispute.dto';
 
 const ACTIVE_STATUSES: DisputeStatus[] = ['OPEN', 'UNDER_REVIEW'];
@@ -37,6 +38,14 @@ export interface DisputeView {
   updatedAt: Date;
   openedByUserId: string;
   openedByName: string;
+  /** When support has promised a first reply by. */
+  responseDueAt: Date;
+  respondedAt: Date | null;
+  escalatedAt: Date | null;
+  /** Active, unanswered and past the deadline. */
+  overdue: boolean;
+  /** The opener may escalate: it is overdue and not yet escalated. */
+  canEscalate: boolean;
   events: DisputeEventView[];
 }
 
@@ -64,6 +73,7 @@ export class DisputeService {
         subjectType: dto.subjectType,
         subjectId: dto.subjectId ?? null,
         reason: dto.reason,
+        responseDueAt: responseDueFor(new Date()),
         events: { create: { authorUserId: userId, message: dto.reason } },
       },
       include: { events: { orderBy: { createdAt: 'asc' } } },
@@ -88,7 +98,10 @@ export class DisputeService {
           ? { status: { in: ACTIVE_STATUSES } }
           : { status: { notIn: ACTIVE_STATUSES } },
       include: { events: { orderBy: { createdAt: 'asc' } } },
-      orderBy: { createdAt: scope === 'active' ? 'asc' : 'desc' },
+      orderBy:
+        scope === 'active'
+          ? [{ escalatedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }]
+          : { createdAt: 'desc' },
     });
     return Promise.all(disputes.map((dispute) => this.toView(dispute, adminId)));
   }
@@ -112,6 +125,7 @@ export class DisputeService {
       data: { disputeId, authorUserId: requesterId, message: dto.message },
     });
     if (isAdmin) {
+      await this.markResponded(dispute);
       await this.notifyOpener(dispute, 'Support replied to your dispute', dto.message);
     }
     return this.get(disputeId, requesterId, isAdmin);
@@ -124,7 +138,7 @@ export class DisputeService {
     }
     await this.prisma.dispute.update({
       where: { id: disputeId },
-      data: { status: 'UNDER_REVIEW' },
+      data: { status: 'UNDER_REVIEW', respondedAt: dispute.respondedAt ?? new Date() },
     });
     await this.notifyOpener(
       dispute,
@@ -148,7 +162,10 @@ export class DisputeService {
       }),
       this.prisma.dispute.update({
         where: { id: disputeId },
-        data: { status: dto.outcome === 'UPHELD' ? 'RESOLVED' : 'REJECTED' },
+        data: {
+          status: dto.outcome === 'UPHELD' ? 'RESOLVED' : 'REJECTED',
+          respondedAt: dispute.respondedAt ?? new Date(),
+        },
       }),
     ]);
     await this.notifyOpener(
@@ -256,6 +273,7 @@ export class DisputeService {
       updatedAt: dispute.updatedAt,
       openedByUserId: dispute.openedByUserId,
       openedByName,
+      ...this.responseState(dispute, viewerId),
       events: dispute.events.map((event) => ({
         id: event.id,
         message: event.message,
@@ -295,6 +313,108 @@ export class DisputeService {
     }
     const user = await this.users.findById(userId);
     return user?.email ?? user?.phone ?? 'Brand user';
+  }
+
+  private responseState(
+    dispute: Dispute,
+    viewerId: string,
+  ): Pick<
+    DisputeView,
+    'responseDueAt' | 'respondedAt' | 'escalatedAt' | 'overdue' | 'canEscalate'
+  > {
+    // Disputes opened before deadlines existed get the same two business days from opening.
+    const responseDueAt = dispute.responseDueAt ?? responseDueFor(dispute.createdAt);
+    const overdue =
+      ACTIVE_STATUSES.includes(dispute.status) &&
+      dispute.respondedAt === null &&
+      responseDueAt.getTime() < Date.now();
+    return {
+      responseDueAt,
+      respondedAt: dispute.respondedAt,
+      escalatedAt: dispute.escalatedAt,
+      overdue,
+      canEscalate: overdue && dispute.escalatedAt === null && dispute.openedByUserId === viewerId,
+    };
+  }
+
+  /** The person who opened it asks for senior attention once support has missed the deadline. */
+  async escalate(disputeId: string, userId: string): Promise<DisputeView> {
+    const dispute = await this.requireDispute(disputeId);
+    if (dispute.openedByUserId !== userId) {
+      throw new ForbiddenException('Only the person who opened a dispute can escalate it.');
+    }
+    this.assertActive(dispute);
+    if (dispute.escalatedAt) {
+      throw new ConflictException('This dispute has already been escalated.');
+    }
+    if (!this.responseState(dispute, userId).overdue) {
+      throw new ConflictException('Support is still within its response time for this dispute.');
+    }
+    await this.applyEscalation(
+      dispute,
+      'Escalated: support has not replied within the response time.',
+    );
+    return this.get(disputeId, userId, false);
+  }
+
+  /** Escalates every unanswered dispute past its deadline; the hourly job calls this. */
+  async escalateOverdue(): Promise<number> {
+    const candidates = await this.prisma.dispute.findMany({
+      where: {
+        status: { in: ACTIVE_STATUSES },
+        respondedAt: null,
+        escalatedAt: null,
+      },
+      include: { events: { orderBy: { createdAt: 'asc' } } },
+    });
+    const overdue = candidates.filter(
+      (dispute) =>
+        (dispute.responseDueAt ?? responseDueFor(dispute.createdAt)).getTime() < Date.now(),
+    );
+    for (const dispute of overdue) {
+      await this.applyEscalation(
+        dispute,
+        'Escalated automatically: no reply within the response time.',
+      );
+    }
+    return overdue.length;
+  }
+
+  private async applyEscalation(dispute: Dispute, message: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.dispute.update({
+        where: { id: dispute.id },
+        data: { escalatedAt: new Date() },
+      }),
+      this.prisma.disputeEvent.create({
+        data: { disputeId: dispute.id, authorUserId: dispute.openedByUserId, message },
+      }),
+    ]);
+    await this.notifyOpener(
+      dispute,
+      'Your dispute was escalated',
+      'It is now flagged as overdue for senior support to pick up first.',
+    );
+    const admins = (await this.users.listAll()).filter((user) => user.type === 'ADMIN');
+    await Promise.all(
+      admins.map((admin) =>
+        this.notifications.notify({
+          userId: admin.id,
+          type: 'DISPUTE_ESCALATED',
+          title: 'Overdue dispute escalated',
+          body: `Dispute ${dispute.id.slice(0, 8)} passed its response time and needs attention.`,
+        }),
+      ),
+    );
+  }
+
+  private async markResponded(dispute: Dispute): Promise<void> {
+    if (dispute.respondedAt === null) {
+      await this.prisma.dispute.update({
+        where: { id: dispute.id },
+        data: { respondedAt: new Date() },
+      });
+    }
   }
 
   private async notifyAdmins(disputeId: string): Promise<void> {

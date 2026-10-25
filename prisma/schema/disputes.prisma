@@ -23,6 +23,12 @@ model Dispute {
   subjectId      String?            @db.Uuid
   reason         String
   status         DisputeStatus      @default(OPEN)
+  // Response-time commitment: support replies by `responseDueAt` (2 business days
+  // after opening). `respondedAt` is support's first reply or decision; a dispute
+  // still unanswered past the deadline is escalated, by the person or automatically.
+  responseDueAt  DateTime?
+  respondedAt    DateTime?
+  escalatedAt    DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 

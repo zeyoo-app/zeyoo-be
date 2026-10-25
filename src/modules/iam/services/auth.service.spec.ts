@@ -87,6 +87,20 @@ describe('AuthService email sign-in', () => {
       expect(mailer.sendSignInCode).not.toHaveBeenCalled();
     });
 
+    it('tells the client how many seconds are left in the cooldown', async () => {
+      codeTable.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 15_000) });
+
+      const error = await service.requestEmailCode(EMAIL).catch((caught: unknown) => caught);
+
+      const body = (error as TooManyRequestsException).getResponse() as {
+        message: string;
+        retryAfterSeconds: number;
+      };
+      expect(body.retryAfterSeconds).toBeGreaterThanOrEqual(29);
+      expect(body.retryAfterSeconds).toBeLessThanOrEqual(30);
+      expect(body.message).toContain(`${body.retryAfterSeconds} seconds`);
+    });
+
     it('rate-limits past the daily ceiling', async () => {
       codeTable.count.mockResolvedValue(10);
 

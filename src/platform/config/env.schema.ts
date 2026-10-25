@@ -76,6 +76,12 @@ export const envSchema = z.object({
   TIKTOK_CLIENT_SECRET: z.string().optional(),
   INSTAGRAM_APP_ID: z.string().optional(),
   INSTAGRAM_APP_SECRET: z.string().optional(),
+  // Creator account connection for YouTube (a Google OAuth client with the YouTube Data
+  // API enabled) and Snapchat (Snap Login Kit). Same redirect URI as the others.
+  YOUTUBE_OAUTH_CLIENT_ID: z.string().optional(),
+  YOUTUBE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  SNAPCHAT_CLIENT_ID: z.string().optional(),
+  SNAPCHAT_CLIENT_SECRET: z.string().optional(),
   // Where Instagram/TikTok send the creator back after they authorise (a page on
   // the web app that forwards the code to the API).
   SOCIAL_OAUTH_REDIRECT_URI: z.string().url().optional(),

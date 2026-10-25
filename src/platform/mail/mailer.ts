@@ -5,4 +5,6 @@
  */
 export abstract class Mailer {
   abstract sendSignInCode(to: string, code: string): Promise<void>;
+  /** A plain notification email (an application decision, a payout update, a dispute reply). */
+  abstract sendNotification(to: string, subject: string, body: string): Promise<void>;
 }

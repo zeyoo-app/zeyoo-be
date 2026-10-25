@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Notification, NotificationPreference } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { Mailer } from '@platform/mail';
 import { UpdatePreferencesDto } from '../dto/notification.dto';
 import { PushSender } from '../push-sender';
 
@@ -13,6 +14,9 @@ const CATEGORY_BY_TYPE: Record<string, keyof CategoryPreferences> = {
   WITHDRAWAL_RELEASED: 'payoutUpdates',
   WITHDRAWAL_REJECTED: 'payoutUpdates',
   WITHDRAWAL_PAID: 'payoutUpdates',
+  APPLICATION_RECEIVED: 'submissionUpdates',
+  APPLICATION_REVIEWED: 'submissionUpdates',
+  VERIFICATION_REVIEWED: 'submissionUpdates',
 };
 
 type CategoryPreferences = Pick<
@@ -39,11 +43,13 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushSender,
+    private readonly mailer: Mailer,
   ) {}
 
   // For notifying as a side effect of something that has already succeeded: a
   // failed notification is logged, never allowed to undo or fail that action. Besides
-  // the in-app entry it pushes to the user's devices unless they turned push off.
+  // the in-app entry it pushes to the user's devices unless they turned push off, and
+  // emails them unless they turned email off.
   async notify(notification: NewNotification): Promise<void> {
     try {
       const preferences = await this.prisma.notificationPreference.findUnique({
@@ -55,6 +61,9 @@ export class NotificationService {
       await this.create(notification);
       if (preferences?.pushEnabled !== false) {
         await this.pushToDevices(notification);
+      }
+      if (preferences?.emailEnabled !== false) {
+        await this.emailUser(notification);
       }
     } catch (error) {
       this.logger.warn(`Could not notify user ${notification.userId}: ${String(error)}`);
@@ -128,6 +137,21 @@ export class NotificationService {
       update: dto,
       create: { userId, ...dto },
     });
+  }
+
+  // Email is its own try so a mail outage never costs the push or the in-app entry.
+  private async emailUser(notification: NewNotification): Promise<void> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: notification.userId },
+        select: { email: true },
+      });
+      if (user?.email) {
+        await this.mailer.sendNotification(user.email, notification.title, notification.body);
+      }
+    } catch (error) {
+      this.logger.warn(`Could not email user ${notification.userId}: ${String(error)}`);
+    }
   }
 
   private async pushToDevices(notification: NewNotification): Promise<void> {

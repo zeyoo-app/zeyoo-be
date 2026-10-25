@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadGatewayException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Env } from '@platform/config/env.schema';
@@ -21,6 +21,12 @@ export interface WalletView {
   held: MoneyView;
   lifetimeEarned: MoneyView;
   payoutConnected: boolean;
+  /**
+   * Identity verification runs inside the payment provider's hosted onboarding (contract
+   * §1.5): `in_progress` once started, `verified` when the provider has checked the
+   * person and enabled payouts.
+   */
+  identityStatus: 'not_started' | 'in_progress' | 'verified';
 }
 
 export interface CreatorLedgerEntryView {
@@ -50,6 +56,8 @@ export interface OrganizationTotals {
 /** Read models over the ledger for the wallet screens, plus creator payout onboarding. */
 @Injectable()
 export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly organizations: OrganizationService,
@@ -73,10 +81,18 @@ export class WalletService {
       pending: money(open.requested, currency),
       held: money(open.held, currency),
       lifetimeEarned: money(earned, currency),
-      payoutConnected: payoutAccount
-        ? await this.gateway.isPayoutAccountReady(payoutAccount.stripeAccountId)
-        : false,
+      ...(await this.payoutState(payoutAccount?.stripeAccountId ?? null)),
     };
+  }
+
+  private async payoutState(
+    stripeAccountId: string | null,
+  ): Promise<Pick<WalletView, 'payoutConnected' | 'identityStatus'>> {
+    if (!stripeAccountId) {
+      return { payoutConnected: false, identityStatus: 'not_started' };
+    }
+    const ready = await this.gateway.isPayoutAccountReady(stripeAccountId);
+    return { payoutConnected: ready, identityStatus: ready ? 'verified' : 'in_progress' };
   }
 
   async getCreatorLedger(creatorUserId: string): Promise<CreatorLedgerEntryView[]> {
@@ -165,15 +181,24 @@ export class WalletService {
       this.users.findById(creatorUserId),
       this.profiles.payoutIdentity(creatorUserId),
     ]);
-    const onboarding = await this.gateway.createPayoutOnboarding({
-      existingAccountId: existing?.stripeAccountId,
-      email: user?.email ?? null,
-      displayName: identity?.displayName ?? user?.email ?? 'Zeyoo creator',
-      country: (identity?.country ?? DEFAULT_PAYOUT_COUNTRY).toLowerCase(),
-      returnUrl: `${appUrl}/creator/payout-method?payout=return`,
-      refreshUrl: `${appUrl}/creator/payout-method?payout=refresh`,
-      metadata: { creatorUserId },
-    });
+    const onboarding = await this.gateway
+      .createPayoutOnboarding({
+        existingAccountId: existing?.stripeAccountId,
+        email: user?.email ?? null,
+        displayName: identity?.displayName ?? user?.email ?? 'Zeyoo creator',
+        country: (identity?.country ?? DEFAULT_PAYOUT_COUNTRY).toLowerCase(),
+        returnUrl: `${appUrl}/creator/payout-method?payout=return`,
+        refreshUrl: `${appUrl}/creator/payout-method?payout=refresh`,
+        metadata: { creatorUserId },
+      })
+      .catch((error: unknown) => {
+        this.logger.error(
+          `Payout onboarding failed for creator ${creatorUserId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw new BadGatewayException(
+          'Payout setup is not available right now. Please try again shortly.',
+        );
+      });
     if (!existing) {
       await this.prisma.payoutAccount.create({
         data: { creatorUserId, stripeAccountId: onboarding.accountId },

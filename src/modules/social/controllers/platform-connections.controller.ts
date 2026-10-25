@@ -54,7 +54,9 @@ export class PlatformConnectionsController {
   private parsePlatform(raw: string): SocialPlatform {
     const parsed = platformParamSchema.safeParse(raw.toUpperCase());
     if (!parsed.success) {
-      throw new BadRequestException('Only Instagram and TikTok accounts are connected here.');
+      throw new BadRequestException(
+        'Only Instagram, TikTok, YouTube and Snapchat accounts are connected here.',
+      );
     }
     return parsed.data;
   }
