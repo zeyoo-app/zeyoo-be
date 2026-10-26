@@ -15,6 +15,8 @@ interface ErrorBody {
   message: string | string[];
   /** Present on rate-limit errors: how long until the same request can succeed. */
   retryAfterSeconds?: number;
+  /** A machine-readable reason clients can branch on, e.g. ACCOUNT_NOT_FOUND. */
+  code?: string;
   path: string;
   timestamp: string;
 }
@@ -42,11 +44,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     const retryAfterSeconds = this.retryAfterOf(exception);
+    const code = this.codeOf(exception);
     const body: ErrorBody = {
       statusCode: status,
       error: HttpStatus[status] ?? 'ERROR',
       message,
       ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+      ...(code === undefined ? {} : { code }),
       path: request.url,
       timestamp: new Date().toISOString(),
     };
@@ -87,6 +91,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? (payload as { retryAfterSeconds?: unknown }).retryAfterSeconds
         : undefined;
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  }
+
+  private codeOf(exception: unknown): string | undefined {
+    if (!(exception instanceof HttpException)) {
+      return undefined;
+    }
+    const payload = exception.getResponse();
+    const value = typeof payload === 'object' ? (payload as { code?: unknown }).code : undefined;
+    return typeof value === 'string' ? value : undefined;
   }
 
   private extractMessage(exception: HttpException): string | string[] {

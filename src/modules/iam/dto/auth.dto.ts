@@ -12,19 +12,26 @@ export const refreshSchema = z.object({
 const CODE_LENGTH = 6;
 const verificationCode = z.string().length(CODE_LENGTH).regex(/^\d+$/, 'Code must be 6 digits.');
 
-export const requestEmailCodeSchema = z.object({ email });
+// 'sign_in' refuses an address with no account (so nobody is silently signed up);
+// 'sign_up' (the create-account screen) sends a code either way. Older app builds send
+// neither and keep the original combined behaviour.
+const intent = z.enum(['sign_in', 'sign_up']).optional();
+
+export const requestEmailCodeSchema = z.object({ email, intent });
 
 export const verifyEmailCodeSchema = z.object({
   email,
   code: verificationCode,
-  // Only consulted when the address has no account yet; a returning user's stored
-  // role always wins.
+  // Required to create an account (the create-account screen sends it); without it a
+  // new address is refused rather than silently made a creator. A returning user's
+  // stored role always wins.
   userType: z.enum(['BRAND_USER', 'CREATOR']).optional(),
 });
 
 export const oauthSignInSchema = z.object({
   idToken: z.string().min(1),
-  userType: z.enum(['BRAND_USER', 'CREATOR']),
+  // Only needed the first time; without it a brand-new person is asked to choose.
+  userType: z.enum(['BRAND_USER', 'CREATOR']).optional(),
 });
 
 // Accepts whatever the user typed — "+1 (555) 123-4567" is as reasonable as
@@ -42,6 +49,7 @@ const phone = z
 
 export const requestPhoneCodeSchema = z.object({
   phone,
+  intent,
 });
 
 export const verifyPhoneCodeSchema = z.object({

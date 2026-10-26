@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { UserType } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { TooManyRequestsException } from '@platform/http/too-many-requests.exception';
@@ -59,6 +60,31 @@ describe('AuthService email sign-in', () => {
     codeTable.findFirst.mockResolvedValue(null);
     passwords.hash.mockResolvedValue('hashed');
     tokens.issueFor.mockResolvedValue(TOKENS);
+  });
+
+  describe('requestEmailCode for sign-in', () => {
+    it('says the account does not exist instead of sending a code', async () => {
+      users.findByEmail.mockResolvedValue(null);
+
+      const error = await service
+        .requestEmailCode(EMAIL, 'sign_in')
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).getResponse()).toMatchObject({
+        code: 'ACCOUNT_NOT_FOUND',
+        message: expect.stringContaining('no Zeyoo account with this email'),
+      });
+      expect(mailer.sendSignInCode).not.toHaveBeenCalled();
+    });
+
+    it('sends the code when the account exists', async () => {
+      users.findByEmail.mockResolvedValue({ id: 'u1', email: EMAIL });
+
+      await service.requestEmailCode(EMAIL, 'sign_in');
+
+      expect(mailer.sendSignInCode).toHaveBeenCalled();
+    });
   });
 
   describe('requestEmailCode', () => {
@@ -139,13 +165,18 @@ describe('AuthService email sign-in', () => {
       expect(result).toEqual({ ...TOKENS, isNewUser: true });
     });
 
-    it('defaults a new account to CREATOR when no role is sent', async () => {
+    it('never creates an account silently when no role is sent', async () => {
       users.findByEmail.mockResolvedValue(null);
-      users.createWithEmail.mockResolvedValue({ id: 'u1', email: EMAIL });
 
-      await service.verifyEmailCode(EMAIL, '123456');
+      const error = await service
+        .verifyEmailCode(EMAIL, '123456')
+        .catch((caught: unknown) => caught);
 
-      expect(users.createWithEmail).toHaveBeenCalledWith({ email: EMAIL, type: UserType.CREATOR });
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect((error as NotFoundException).getResponse()).toMatchObject({
+        code: 'ACCOUNT_NOT_FOUND',
+      });
+      expect(users.createWithEmail).not.toHaveBeenCalled();
     });
 
     it('signs a returning user in without creating anything', async () => {

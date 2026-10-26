@@ -5,13 +5,15 @@ import { PrismaService } from '@platform/database/prisma.service';
 import { TooManyRequestsException } from '@platform/http/too-many-requests.exception';
 import { Mailer } from '@platform/mail';
 import { SmsSender } from '@platform/sms';
+import { accountNotFound } from '../auth-errors';
 import { PasswordService } from './password.service';
 import { AuthTokens, TokenService } from './token.service';
 import { UserService } from './user.service';
 
-const DEFAULT_USER_TYPE = UserType.CREATOR;
-
 type CodeChannel = 'email' | 'phone';
+
+/** Which screen asked for the code: sign-in refuses an address with no account. */
+export type SignInIntent = 'sign_in' | 'sign_up';
 
 interface StoredCode {
   id: string;
@@ -65,7 +67,10 @@ export class AuthService {
    * A delivery failure is reported (the user is waiting on this email) but, being
    * independent of the address, reveals nothing either.
    */
-  async requestEmailCode(email: string): Promise<void> {
+  async requestEmailCode(email: string, intent?: SignInIntent): Promise<void> {
+    if (intent === 'sign_in' && !(await this.users.findByEmail(email))) {
+      throw accountNotFound('email');
+    }
     const code = await this.issueCode('email', email);
     await this.mailer.sendSignInCode(email, code);
   }
@@ -89,7 +94,12 @@ export class AuthService {
       return { ...(await this.tokens.issueFor(existing)), isNewUser: false };
     }
 
-    const user = await this.createEmailUser(email, userType ?? DEFAULT_USER_TYPE);
+    // Never sign anyone up silently: an account is only created from the create-account
+    // screen, which says which kind of account it is.
+    if (!userType) {
+      throw accountNotFound('email');
+    }
+    const user = await this.createEmailUser(email, userType);
     return { ...(await this.tokens.issueFor(user)), isNewUser: true };
   }
 
@@ -97,7 +107,10 @@ export class AuthService {
    * Starts phone-number sign-in: texts a 6-digit code to the number. The account
    * does not have to exist yet, so the response never depends on it.
    */
-  async requestPhoneCode(phone: string): Promise<void> {
+  async requestPhoneCode(phone: string, intent?: SignInIntent): Promise<void> {
+    if (intent === 'sign_in' && !(await this.users.findByPhone(phone))) {
+      throw accountNotFound('phone');
+    }
     const code = await this.issueCode('phone', phone);
     await this.sms.sendVerificationCode(phone, code);
   }
@@ -114,7 +127,10 @@ export class AuthService {
       return { ...(await this.tokens.issueFor(existing)), isNewUser: false };
     }
 
-    const user = await this.createPhoneUser(phone, userType ?? DEFAULT_USER_TYPE);
+    if (!userType) {
+      throw accountNotFound('phone');
+    }
+    const user = await this.createPhoneUser(phone, userType);
     return { ...(await this.tokens.issueFor(user)), isNewUser: true };
   }
 
