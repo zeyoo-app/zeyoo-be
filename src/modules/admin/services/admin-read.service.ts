@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CampaignStatus, Prisma, UserStatus, UserType, WithdrawalStatus } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { StaffService } from '@modules/iam/iam.public';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -161,7 +162,10 @@ function sumByCurrency(
 /** Read-only reporting model for the admin console: joins that no single module owns. */
 @Injectable()
 export class AdminReadService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly staff: StaffService,
+  ) {}
 
   async overview(): Promise<AdminOverview> {
     const since = new Date(Date.now() - RECENT_DAYS * MS_PER_DAY);
@@ -446,6 +450,9 @@ export class AdminReadService {
     ]);
     const emails = new Map(users.map((user) => [user.id, user.email]));
     const names = new Map(profiles.map((profile) => [profile.userId, profile.displayName]));
+    const deciders = await this.staff.emailsByIds(
+      rows.map((row) => row.decidedByUserId).filter(Boolean) as string[],
+    );
     const items = rows.map((row) => ({
       id: row.id,
       creatorName: names.get(row.creatorUserId) ?? emails.get(row.creatorUserId) ?? 'Creator',
@@ -456,7 +463,9 @@ export class AdminReadService {
       holdReason: row.holdReason,
       destinationAccountId: row.destinationAccountId,
       transferId: row.stripePayoutId,
-      decidedByEmail: row.decidedByUserId ? (emails.get(row.decidedByUserId) ?? null) : null,
+      decidedByEmail: row.decidedByUserId
+        ? (deciders.get(row.decidedByUserId) ?? emails.get(row.decidedByUserId) ?? null)
+        : null,
       decidedAt: row.decidedAt,
       createdAt: row.createdAt,
     }));
@@ -469,14 +478,19 @@ export class AdminReadService {
       this.prisma.adminAuditLog.count(),
       this.prisma.adminAuditLog.findMany({ orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
     ]);
-    const admins = await this.prisma.user.findMany({
-      where: { id: { in: [...new Set(rows.map((row) => row.adminUserId))] } },
-      select: { id: true, email: true },
-    });
+    // Actions are by staff accounts; older ones were by ADMIN-type users.
+    const actorIds = [...new Set(rows.map((row) => row.adminUserId))];
+    const [staffEmails, admins] = await Promise.all([
+      this.staff.emailsByIds(actorIds),
+      this.prisma.user.findMany({
+        where: { id: { in: actorIds } },
+        select: { id: true, email: true },
+      }),
+    ]);
     const emails = new Map(admins.map((admin) => [admin.id, admin.email]));
     const items = rows.map((row) => ({
       id: row.id,
-      adminEmail: emails.get(row.adminUserId) ?? null,
+      adminEmail: staffEmails.get(row.adminUserId) ?? emails.get(row.adminUserId) ?? null,
       method: row.method,
       route: row.route,
       params: row.params,

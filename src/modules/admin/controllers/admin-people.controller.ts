@@ -10,23 +10,33 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { StaffRole, StaffStatus } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
 import { AddStaffDto, RejectVerificationDto } from '../dto/admin.dto';
 import { Page } from '../services/admin-read.service';
-import {
-  AdminPeopleService,
-  StaffRow,
-  UserDetail,
-  VerificationRow,
-} from '../services/admin-people.service';
+import { StaffService } from '@modules/iam/iam.public';
+import { AdminPeopleService, UserDetail, VerificationRow } from '../services/admin-people.service';
+
+export interface StaffRow {
+  id: string;
+  email: string;
+  role: StaffRole;
+  status: StaffStatus;
+  lastSignInAt: Date | null;
+  createdAt: Date;
+  isYou: boolean;
+}
 
 @ApiTags('admin')
 @ApiBearerAuth()
 @RequirePermission(Permission.AdminAccess)
 @Controller('admin')
 export class AdminPeopleController {
-  constructor(private readonly people: AdminPeopleService) {}
+  constructor(
+    private readonly people: AdminPeopleService,
+    private readonly staffAccounts: StaffService,
+  ) {}
 
   @Get('users/:userId')
   userDetail(@Param('userId', ParseUUIDPipe) userId: string): Promise<UserDetail> {
@@ -59,28 +69,42 @@ export class AdminPeopleController {
     await this.people.rejectVerification(userId, dto.note);
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.StaffManage)
   @Get('staff')
-  staff(@CurrentUser() principal: Principal): Promise<StaffRow[]> {
-    return this.people.staff(principal.userId);
+  async staff(@CurrentUser() principal: Principal): Promise<StaffRow[]> {
+    const staff = await this.staffAccounts.list();
+    return staff.map((member) => ({
+      id: member.id,
+      email: member.email,
+      role: member.role,
+      status: member.status,
+      lastSignInAt: member.lastSignInAt,
+      createdAt: member.createdAt,
+      isYou: member.id === principal.userId,
+    }));
   }
 
+  // Super admin is the only role for now; more roles arrive with their own privileges.
+  @RequirePermission(Permission.AdminAccess, Permission.StaffManage)
   @Post('staff')
-  addStaff(@Body() dto: AddStaffDto): Promise<StaffRow> {
-    return this.people.addStaff(dto.email);
+  async addStaff(@CurrentUser() principal: Principal, @Body() dto: AddStaffDto): Promise<void> {
+    await this.staffAccounts.add(dto.email, 'SUPER_ADMIN', principal.userId);
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.StaffManage)
   @HttpCode(HttpStatus.OK)
-  @Post('staff/:userId/deactivate')
+  @Post('staff/:staffId/deactivate')
   async deactivateStaff(
     @CurrentUser() principal: Principal,
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('staffId', ParseUUIDPipe) staffId: string,
   ): Promise<void> {
-    await this.people.deactivateStaff(userId, principal.userId);
+    await this.staffAccounts.deactivate(staffId, principal.userId);
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.StaffManage)
   @HttpCode(HttpStatus.OK)
-  @Post('staff/:userId/reactivate')
-  async reactivateStaff(@Param('userId', ParseUUIDPipe) userId: string): Promise<void> {
-    await this.people.reactivateStaff(userId);
+  @Post('staff/:staffId/reactivate')
+  async reactivateStaff(@Param('staffId', ParseUUIDPipe) staffId: string): Promise<void> {
+    await this.staffAccounts.reactivate(staffId);
   }
 }

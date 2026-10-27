@@ -27,24 +27,24 @@ enum OAuthProvider {
 }
 
 model User {
-  id     String  @id @default(uuid()) @db.Uuid
+  id              String     @id @default(uuid()) @db.Uuid
   // Nullable so an account can be created from a phone number alone. At least one
   // of email/phone is always present; a sign-in identifier is proven by either
   // emailVerifiedAt or phoneVerifiedAt.
-  email String? @unique
+  email           String?    @unique
   // Stored in E.164 form (+15551234567) so lookups are a single exact match.
-  phone         String?    @unique
-  type          UserType
-  status        UserStatus @default(PENDING)
-  emailVerifiedAt   DateTime?
-  phoneVerifiedAt   DateTime?
-  deletedAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  phone           String?    @unique
+  type            UserType
+  status          UserStatus @default(PENDING)
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
-  refreshTokens     RefreshToken[]
-  oauthIdentities   OAuthIdentity[]
-  memberships       Membership[]
+  refreshTokens   RefreshToken[]
+  oauthIdentities OAuthIdentity[]
+  memberships     Membership[]
 
   @@map("iam_users")
 }
@@ -177,4 +177,63 @@ model ApiKey {
 
   @@index([organizationId])
   @@map("iam_api_keys")
+}
+
+// Zeyoo staff who sign in to the back office. A separate identity from User:
+// staff never need a creator or brand account, and one person can hold both under
+// the same email without either affecting the other. More roles come later.
+enum StaffRole {
+  SUPER_ADMIN
+}
+
+enum StaffStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+model StaffAccount {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
+  role         StaffRole
+  status       StaffStatus @default(ACTIVE)
+  // The staff member who added this one; null for the seeded super admin.
+  addedById    String?     @db.Uuid
+  lastSignInAt DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  refreshTokens StaffRefreshToken[]
+
+  @@map("iam_staff_accounts")
+}
+
+// Back-office sign-in codes, kept apart from customer codes so a code sent for
+// one can never be spent on the other.
+model StaffSignInCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+  @@map("iam_staff_sign_in_codes")
+}
+
+// Same rotation scheme as RefreshToken, for staff sessions.
+model StaffRefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  staffId      String    @db.Uuid
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+
+  staff StaffAccount @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@map("iam_staff_refresh_tokens")
 }

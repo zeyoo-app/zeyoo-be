@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Principal } from '@platform/auth';
-import { Permission } from '@platform/rbac';
+import { AllowStaff, Permission } from '@platform/rbac';
 import { DisputeMessageDto, OpenDisputeDto } from '../dto/dispute.dto';
 import { DisputeService, DisputeView } from '../services/dispute.service';
 
@@ -25,6 +25,7 @@ export class DisputesController {
     return this.disputes.listOwn(principal.userId);
   }
 
+  @AllowStaff()
   @Get(':disputeId')
   get(
     @CurrentUser() principal: Principal,
@@ -33,6 +34,7 @@ export class DisputesController {
     return this.disputes.get(disputeId, principal.userId, isAdmin(principal));
   }
 
+  @AllowStaff()
   @Post(':disputeId/messages')
   addMessage(
     @CurrentUser() principal: Principal,

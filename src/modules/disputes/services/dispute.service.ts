@@ -6,10 +6,11 @@ import {
 } from '@nestjs/common';
 import { Dispute, DisputeEvent, DisputeStatus, DisputeSubjectType } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { Mailer } from '@platform/mail';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { CreatorProfileService } from '@modules/creators/creators.public';
 import { FraudService } from '@modules/fraud/fraud.public';
-import { OrganizationService, UserService } from '@modules/iam/iam.public';
+import { OrganizationService, StaffService, UserService } from '@modules/iam/iam.public';
 import { NotificationService } from '@modules/notifications/notifications.public';
 import { WithdrawalService } from '@modules/payments/payments.public';
 import { ReviewService, SubmissionService } from '@modules/submissions/submissions.public';
@@ -62,6 +63,8 @@ export class DisputeService {
     private readonly users: UserService,
     private readonly profiles: CreatorProfileService,
     private readonly notifications: NotificationService,
+    private readonly staff: StaffService,
+    private readonly mailer: Mailer,
   ) {}
 
   async open(userId: string, dto: OpenDisputeDto): Promise<DisputeView> {
@@ -250,9 +253,10 @@ export class DisputeService {
     viewerId: string,
   ): Promise<DisputeView> {
     const authorIds = [...new Set(dispute.events.map((event) => event.authorUserId))];
-    const adminIds = new Set<string>();
+    // Staff replies come from staff accounts; older ones came from ADMIN-type users.
+    const adminIds = new Set((await this.staff.emailsByIds(authorIds)).keys());
     for (const authorId of authorIds) {
-      if ((await this.users.findById(authorId))?.type === 'ADMIN') {
+      if (!adminIds.has(authorId) && (await this.users.findById(authorId))?.type === 'ADMIN') {
         adminIds.add(authorId);
       }
     }
@@ -395,16 +399,9 @@ export class DisputeService {
       'Your dispute was escalated',
       'It is now flagged as overdue for senior support to pick up first.',
     );
-    const admins = (await this.users.listAll()).filter((user) => user.type === 'ADMIN');
-    await Promise.all(
-      admins.map((admin) =>
-        this.notifications.notify({
-          userId: admin.id,
-          type: 'DISPUTE_ESCALATED',
-          title: 'Overdue dispute escalated',
-          body: `Dispute ${dispute.id.slice(0, 8)} passed its response time and needs attention.`,
-        }),
-      ),
+    await this.emailStaff(
+      'Overdue dispute escalated',
+      `Dispute ${dispute.id.slice(0, 8)} passed its response time and needs attention.`,
     );
   }
 
@@ -417,17 +414,18 @@ export class DisputeService {
     }
   }
 
-  private async notifyAdmins(disputeId: string): Promise<void> {
-    const admins = (await this.users.listAll()).filter((user) => user.type === 'ADMIN');
-    await Promise.all(
-      admins.map((admin) =>
-        this.notifications.notify({
-          userId: admin.id,
-          type: 'DISPUTE_OPENED',
-          title: 'New dispute to review',
-          body: `Dispute ${disputeId.slice(0, 8)} is waiting in the admin queue.`,
-        }),
-      ),
+  private notifyAdmins(disputeId: string): Promise<void> {
+    return this.emailStaff(
+      'New dispute to review',
+      `Dispute ${disputeId.slice(0, 8)} is waiting in the admin queue.`,
+    );
+  }
+
+  /** Staff are not app users, so back-office alerts go by email. A failed send never blocks the dispute. */
+  private async emailStaff(subject: string, body: string): Promise<void> {
+    const emails = await this.staff.activeEmails();
+    await Promise.allSettled(
+      emails.map((email) => this.mailer.sendNotification(email, subject, body)),
     );
   }
 
