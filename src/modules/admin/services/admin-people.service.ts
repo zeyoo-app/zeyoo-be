@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserStatus, UserType, VerificationStatus } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CreatorProfileService } from '@modules/creators/creators.public';
@@ -24,14 +24,6 @@ export interface VerificationRow {
   bio: string | null;
   requestedAt: Date;
   accounts: { platform: string; handle: string; verified: boolean }[];
-}
-
-export interface StaffRow {
-  id: string;
-  email: string | null;
-  status: UserStatus;
-  createdAt: Date;
-  isYou: boolean;
 }
 
 export interface UserDetail {
@@ -203,82 +195,6 @@ export class AdminPeopleService {
         createdAt: item.createdAt,
       })),
     };
-  }
-
-  async staff(requesterId: string): Promise<StaffRow[]> {
-    const admins = await this.prisma.user.findMany({
-      where: { type: 'ADMIN', status: { not: 'DELETED' } },
-      orderBy: { createdAt: 'asc' },
-    });
-    return admins.map((admin) => ({
-      id: admin.id,
-      email: admin.email,
-      status: admin.status,
-      createdAt: admin.createdAt,
-      isYou: admin.id === requesterId,
-    }));
-  }
-
-  /** Gives a person staff access: a brand-new account, or an existing one with no other role. */
-  async addStaff(email: string): Promise<StaffRow> {
-    const normalized = email.trim().toLowerCase();
-    const existing = await this.users.findByEmail(normalized);
-    if (!existing) {
-      const created = await this.users.createWithEmail({ email: normalized, type: 'ADMIN' });
-      return this.toStaff(created.id, created.email, created.status, created.createdAt);
-    }
-    if (existing.type === 'ADMIN') {
-      throw new ConflictException('This person already has staff access.');
-    }
-    const [profile, memberships] = await Promise.all([
-      this.prisma.creatorProfile.count({ where: { userId: existing.id } }),
-      this.prisma.membership.count({ where: { userId: existing.id } }),
-    ]);
-    if (profile > 0 || memberships > 0) {
-      throw new ConflictException(
-        'This email belongs to a creator or brand account. Use a separate email for staff access.',
-      );
-    }
-    const promoted = await this.users.setType(existing.id, 'ADMIN');
-    const active = await this.users.setStatus(promoted.id, 'ACTIVE');
-    return this.toStaff(active.id, active.email, active.status, active.createdAt);
-  }
-
-  async deactivateStaff(userId: string, requesterId: string): Promise<void> {
-    const staff = await this.requireStaff(userId);
-    if (staff.id === requesterId) {
-      throw new ConflictException('You cannot remove your own access.');
-    }
-    if (staff.status !== 'ACTIVE') {
-      throw new ConflictException('This staff account is not active.');
-    }
-    const activeAdmins = await this.prisma.user.count({
-      where: { type: 'ADMIN', status: 'ACTIVE' },
-    });
-    if (activeAdmins <= 1) {
-      throw new ConflictException('At least one active staff account must remain.');
-    }
-    await this.users.setStatus(userId, 'SUSPENDED');
-  }
-
-  async reactivateStaff(userId: string): Promise<void> {
-    const staff = await this.requireStaff(userId);
-    if (staff.status !== 'SUSPENDED') {
-      throw new ConflictException('Only a deactivated staff account can be restored.');
-    }
-    await this.users.setStatus(userId, 'ACTIVE');
-  }
-
-  private toStaff(id: string, email: string | null, status: UserStatus, createdAt: Date): StaffRow {
-    return { id, email, status, createdAt, isYou: false };
-  }
-
-  private async requireStaff(userId: string): Promise<{ id: string; status: UserStatus }> {
-    const user = await this.users.findById(userId);
-    if (!user || user.type !== 'ADMIN') {
-      throw new NotFoundException('Staff account not found.');
-    }
-    return { id: user.id, status: user.status };
   }
 
   private async creatorSection(

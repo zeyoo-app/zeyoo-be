@@ -1,4 +1,4 @@
-import { UserType } from '@prisma/client';
+import { StaffRole, UserType } from '@prisma/client';
 import { Permission } from './permission';
 import { permissionsForRole } from './roles';
 
@@ -18,10 +18,14 @@ describe('permissionsForRole', () => {
     expect(permissions).not.toContain(Permission.AdminAccess);
   });
 
-  it('grants admins every brand permission plus admin access', () => {
-    const permissions = permissionsForRole(UserType.ADMIN);
+  it('gives the retired ADMIN user type no back-office access', () => {
+    expect(permissionsForRole(UserType.ADMIN)).not.toContain(Permission.AdminAccess);
+  });
 
-    expect(permissions).toContain(Permission.OrgManage);
+  it('lets a super admin into the back office and manage staff', () => {
+    const permissions = permissionsForRole(StaffRole.SUPER_ADMIN);
+
     expect(permissions).toContain(Permission.AdminAccess);
+    expect(permissions).toContain(Permission.StaffManage);
   });
 });

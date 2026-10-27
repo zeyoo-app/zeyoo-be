@@ -60,6 +60,10 @@ export const verifyPhoneCodeSchema = z.object({
   userType: z.enum(['BRAND_USER', 'CREATOR']).optional(),
 });
 
+export const requestStaffCodeSchema = z.object({ email });
+
+export const verifyStaffCodeSchema = z.object({ email, code: verificationCode });
+
 export class RefreshDto extends createZodDto(refreshSchema) {}
 export class LogoutDto extends createZodDto(refreshSchema) {}
 export class RequestEmailCodeDto extends createZodDto(requestEmailCodeSchema) {}
@@ -67,3 +71,5 @@ export class VerifyEmailCodeDto extends createZodDto(verifyEmailCodeSchema) {}
 export class OAuthSignInDto extends createZodDto(oauthSignInSchema) {}
 export class RequestPhoneCodeDto extends createZodDto(requestPhoneCodeSchema) {}
 export class VerifyPhoneCodeDto extends createZodDto(verifyPhoneCodeSchema) {}
+export class RequestStaffCodeDto extends createZodDto(requestStaffCodeSchema) {}
+export class VerifyStaffCodeDto extends createZodDto(verifyStaffCodeSchema) {}

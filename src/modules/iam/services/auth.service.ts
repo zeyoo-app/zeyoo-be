@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { Prisma, User, UserType } from '@prisma/client';
+import { Prisma, StaffAccount, User, UserType } from '@prisma/client';
 import { randomInt } from 'node:crypto';
 import { PrismaService } from '@platform/database/prisma.service';
 import { TooManyRequestsException } from '@platform/http/too-many-requests.exception';
@@ -10,7 +10,15 @@ import { PasswordService } from './password.service';
 import { AuthTokens, TokenService } from './token.service';
 import { UserService } from './user.service';
 
-type CodeChannel = 'email' | 'phone';
+/** 'staff' is back-office sign-in: emailed, but kept in its own table. */
+type CodeChannel = 'email' | 'phone' | 'staff';
+
+/** The column each code table keys its rows by. */
+const CODE_COLUMN: Record<CodeChannel, 'email' | 'phone'> = {
+  email: 'email',
+  phone: 'phone',
+  staff: 'email',
+};
 
 /** Which screen asked for the code: sign-in refuses an address with no account. */
 export type SignInIntent = 'sign_in' | 'sign_up';
@@ -135,6 +143,45 @@ export class AuthService {
   }
 
   /**
+   * Starts back-office sign-in. Only an active staff account is sent a code, but
+   * the response is the same either way, so the endpoint does not reveal who has
+   * back-office access. Staff never sign up: a super admin adds them.
+   */
+  async requestStaffCode(email: string): Promise<void> {
+    if (!(await this.findActiveStaff(email))) {
+      return;
+    }
+    const code = await this.issueCode('staff', email);
+    await this.mailer.sendSignInCode(email, code);
+  }
+
+  /** Completes back-office sign-in with a staff session. */
+  async verifyStaffCode(email: string, code: string): Promise<AuthTokens> {
+    await this.consumeCode('staff', email, code);
+    const staff = await this.findActiveStaff(email);
+    if (!staff) {
+      throw new BadRequestException('This code is invalid or has expired.');
+    }
+    await this.prisma.staffAccount.update({
+      where: { id: staff.id },
+      data: { lastSignInAt: new Date() },
+    });
+    return this.tokens.issueForStaff(staff);
+  }
+
+  refreshStaff(refreshToken: string): Promise<AuthTokens> {
+    return this.tokens.rotateStaff(refreshToken);
+  }
+
+  logoutStaff(refreshToken: string): Promise<void> {
+    return this.tokens.revokeStaff(refreshToken);
+  }
+
+  private findActiveStaff(email: string): Promise<StaffAccount | null> {
+    return this.prisma.staffAccount.findFirst({ where: { email, status: 'ACTIVE' } });
+  }
+
+  /**
    * Creates and persists a fresh code for an email address or phone number and
    * returns the plaintext for delivery. Codes are keyed by the identifier, not the
    * user, because the account may not exist yet. Only an argon2 hash is stored, and
@@ -154,12 +201,16 @@ export class AuthService {
       // Spent rows are dropped so the send history cannot grow without bound.
       table.deleteMany({
         where: {
-          [channel]: identifier,
+          [CODE_COLUMN[channel]]: identifier,
           OR: [{ consumedAt: { not: null } }, { expiresAt: { lte: new Date() } }],
         },
       }),
       table.create({
-        data: { [channel]: identifier, codeHash, expiresAt: new Date(Date.now() + CODE_TTL_MS) },
+        data: {
+          [CODE_COLUMN[channel]]: identifier,
+          codeHash,
+          expiresAt: new Date(Date.now() + CODE_TTL_MS),
+        },
       }),
     ] as Prisma.PrismaPromise<unknown>[]);
     return code;
@@ -172,7 +223,11 @@ export class AuthService {
   private async consumeCode(channel: CodeChannel, identifier: string, code: string): Promise<void> {
     const table = this.codeTable(channel);
     const record = (await table.findFirst({
-      where: { [channel]: identifier, consumedAt: null, expiresAt: { gt: new Date() } },
+      where: {
+        [CODE_COLUMN[channel]]: identifier,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       orderBy: { createdAt: 'desc' },
     })) as StoredCode | null;
     if (!record || record.attempts >= MAX_ATTEMPTS) {
@@ -191,16 +246,19 @@ export class AuthService {
     const table = this.codeTable(channel);
     const now = Date.now();
     const sendsToday = await table.count({
-      where: { [channel]: identifier, createdAt: { gte: new Date(now - 24 * 60 * 60 * 1000) } },
+      where: {
+        [CODE_COLUMN[channel]]: identifier,
+        createdAt: { gte: new Date(now - 24 * 60 * 60 * 1000) },
+      },
     });
     if (sendsToday >= MAX_SENDS_PER_DAY) {
       throw new TooManyRequestsException(
-        `Too many codes requested for this ${channel === 'email' ? 'email' : 'number'}. Try again later.`,
+        `Too many codes requested for this ${channel === 'phone' ? 'number' : 'email'}. Try again later.`,
       );
     }
 
     const last = (await table.findFirst({
-      where: { [channel]: identifier },
+      where: { [CODE_COLUMN[channel]]: identifier },
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true },
     })) as { createdAt: Date } | null;
@@ -215,11 +273,14 @@ export class AuthService {
     }
   }
 
-  /** The email and phone code tables share one shape, differing only in the identifier column. */
+  /** The code tables share one shape, differing only in the identifier column. */
   private codeTable(channel: CodeChannel): CodeTable {
-    return (channel === 'email'
-      ? this.prisma.emailVerificationCode
-      : this.prisma.phoneVerificationCode) as unknown as CodeTable;
+    const tables = {
+      email: this.prisma.emailVerificationCode,
+      phone: this.prisma.phoneVerificationCode,
+      staff: this.prisma.staffSignInCode,
+    };
+    return tables[channel] as unknown as CodeTable;
   }
 
   /**

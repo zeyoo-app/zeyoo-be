@@ -16,6 +16,7 @@ function build({
   overrideAsAdmin: jest.Mock;
   closeAsAdmin: jest.Mock;
   notify: jest.Mock;
+  emailStaff: jest.Mock;
   updateDispute: jest.Mock;
   getById: jest.Mock;
   transaction: jest.Mock;
@@ -51,6 +52,7 @@ function build({
   const closeAsAdmin = jest.fn().mockResolvedValue({});
   const getById = jest.fn().mockResolvedValue({});
   const notify = jest.fn().mockResolvedValue(undefined);
+  const emailStaff = jest.fn().mockResolvedValue(undefined);
   const service = new DisputeService(
     prisma as never,
     {
@@ -68,16 +70,21 @@ function build({
     { closeAsAdmin, assertCreatorOf: jest.fn(), findView: jest.fn() } as never,
     {
       findById: jest.fn().mockResolvedValue({ type: 'CREATOR', email: 'a@b.c' }),
-      listAll: jest.fn().mockResolvedValue([{ id: 'admin-1', type: 'ADMIN' }]),
     } as never,
     { summariesByUserIds: jest.fn().mockResolvedValue(new Map()) } as never,
     { notify } as never,
+    {
+      emailsByIds: jest.fn().mockResolvedValue(new Map()),
+      activeEmails: jest.fn().mockResolvedValue(['staff@zeyoo.com']),
+    } as never,
+    { sendNotification: emailStaff } as never,
   );
   return {
     service,
     overrideAsAdmin,
     closeAsAdmin,
     notify,
+    emailStaff,
     updateDispute,
     getById,
     transaction: prisma.$transaction,
@@ -85,8 +92,8 @@ function build({
 }
 
 describe('DisputeService.open', () => {
-  it('checks the opener is a party to the submission and alerts admins', async () => {
-    const { service, getById, notify } = build();
+  it('checks the opener is a party to the submission and alerts staff', async () => {
+    const { service, getById, emailStaff } = build();
 
     await service.open('creator-1', {
       subjectType: 'SUBMISSION',
@@ -95,8 +102,10 @@ describe('DisputeService.open', () => {
     });
 
     expect(getById).toHaveBeenCalledWith('submission-1', 'creator-1');
-    expect(notify).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'admin-1', type: 'DISPUTE_OPENED' }),
+    expect(emailStaff).toHaveBeenCalledWith(
+      'staff@zeyoo.com',
+      'New dispute to review',
+      expect.any(String),
     );
   });
 
@@ -184,13 +193,15 @@ const FIVE_DAYS_AGO = new Date(Date.now() - 5 * 24 * 60 * 60 * 1_000);
 
 describe('DisputeService.escalate', () => {
   it('escalates an unanswered dispute that is past its response time', async () => {
-    const { service, notify, transaction } = build({ dispute: { createdAt: FIVE_DAYS_AGO } });
+    const { service, emailStaff, transaction } = build({ dispute: { createdAt: FIVE_DAYS_AGO } });
 
     await service.escalate('dispute-1', 'creator-1');
 
     expect(transaction).toHaveBeenCalled();
-    expect(notify).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'admin-1', type: 'DISPUTE_ESCALATED' }),
+    expect(emailStaff).toHaveBeenCalledWith(
+      'staff@zeyoo.com',
+      'Overdue dispute escalated',
+      expect.any(String),
     );
   });
 

@@ -14,6 +14,7 @@ export const Permission = {
   CreatorProfileManage: 'creator:profile:manage',
   MediaUpload: 'media:upload',
   AdminAccess: 'admin:access',
+  StaffManage: 'admin:staff:manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

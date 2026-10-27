@@ -22,6 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       userId: claims.sub,
       email: claims.email,
       role: claims.role,
+      kind: claims.kind === 'staff' ? 'staff' : 'user',
       permissions: permissionsForRole(claims.role),
     };
   }
