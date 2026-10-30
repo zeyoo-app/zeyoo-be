@@ -80,7 +80,9 @@ model CampaignFunding {
   id             String        @id @default(uuid()) @db.Uuid
   campaignId     String        @db.Uuid
   organizationId String        @db.Uuid
-  amount         Int // minor units
+  amount         Int // minor units; the budget credited to the brand's wallet
+  // Platform fee charged on top of the budget in the same payment (minor units).
+  feeAmount      Int           @default(0)
   currencyCode   String
   status         FundingStatus @default(PENDING)
   stripePaymentIntentId String  @unique

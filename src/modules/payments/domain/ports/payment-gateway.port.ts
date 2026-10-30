@@ -2,6 +2,9 @@ export const PAYMENT_GATEWAY = 'PaymentGatewayPort';
 
 export interface CreateFundingCheckoutInput {
   amountMinor: number;
+  /** Platform fee charged as its own line on the same payment; 0 for none. */
+  feeMinor: number;
+  feeLabel: string;
   currencyCode: string;
   title: string;
   successUrl: string;

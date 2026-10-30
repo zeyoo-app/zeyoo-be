@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@platform/database/prisma.service';
 import { Env } from '@platform/config/env.schema';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
+import { EntitlementsService } from '@modules/entitlements/entitlements.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { Money } from '../domain/money';
 import { PAYMENT_GATEWAY, PaymentGatewayPort } from '../domain/ports/payment-gateway.port';
@@ -12,6 +13,8 @@ import { LedgerService } from './ledger.service';
 export interface FundingStatus {
   fundingId: string;
   amountMinor: number;
+  /** Platform fee paid on top of the budget. */
+  feeMinor: number;
   currencyCode: string;
   status: 'PENDING' | 'SUCCEEDED' | 'FAILED';
 }
@@ -28,6 +31,7 @@ export class FundingService {
     private readonly campaigns: CampaignService,
     private readonly organizations: OrganizationService,
     private readonly ledger: LedgerService,
+    private readonly entitlements: EntitlementsService,
     private readonly config: ConfigService<Env, true>,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGatewayPort,
   ) {}
@@ -44,11 +48,16 @@ export class FundingService {
     const campaign = await this.campaigns.requireCampaign(campaignId);
     await this.organizations.assertMember(campaign.organizationId, requesterId);
 
+    const plan = await this.entitlements.forOrganization(campaign.organizationId);
+    const feeMinor = EntitlementsService.feeMinor(amountMinor, plan.platformFeeBps);
+
     const bypassStripe = this.config.get('PAYMENTS_BYPASS_STRIPE', { infer: true });
     const checkout = bypassStripe
       ? { reference: `bypass_${randomUUID()}`, url: null }
       : await this.gateway.createFundingCheckout({
           amountMinor,
+          feeMinor,
+          feeLabel: `Zeyoo platform fee (${plan.platformFeeBps / 100}%)`,
           currencyCode: campaign.currencyCode,
           title: `Fund campaign: ${campaign.title}`,
           successUrl: this.returnUrl(campaignId, client, 'paid'),
@@ -60,6 +69,7 @@ export class FundingService {
         campaignId,
         organizationId: campaign.organizationId,
         amount: amountMinor,
+        feeAmount: feeMinor,
         currencyCode: campaign.currencyCode,
         stripePaymentIntentId: checkout.reference,
       },
@@ -72,6 +82,7 @@ export class FundingService {
       fundingId: funding.id,
       checkoutUrl: checkout.url,
       amountMinor,
+      feeMinor,
       currencyCode: campaign.currencyCode,
       status: bypassStripe ? 'SUCCEEDED' : 'PENDING',
     };
@@ -88,6 +99,7 @@ export class FundingService {
       ? {
           fundingId: latest.id,
           amountMinor: latest.amount,
+          feeMinor: latest.feeAmount,
           currencyCode: latest.currencyCode,
           status: latest.status,
         }

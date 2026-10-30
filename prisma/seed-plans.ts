@@ -1,44 +1,67 @@
 import { PrismaClient } from '@prisma/client';
+import Stripe from 'stripe';
 
-const PLAN_KEYS = ['starter', 'growth', 'scale'] as const;
+import { PLAN_CATALOG, type PlanDefinition } from '../src/modules/entitlements/domain/plan-catalog';
+
 const CURRENCY_CODE = 'USD';
 
-interface PlanConfig {
-  key: string;
-  name: string;
-  stripePriceId: string;
-  priceMinor: number;
-}
-
 /**
- * The price lives in Stripe, so each plan is configured from the environment:
- * STRIPE_PRICE_ID_<KEY> (e.g. price_123) and PLAN_PRICE_MINOR_<KEY> (e.g. 4900).
- * A plan with either value missing is skipped, never seeded half-configured.
+ * Writes every tier from the plan catalog. Paid tiers are billed by a Stripe Price
+ * found by its lookup key — created on first run (USD, with a SAR currency option so
+ * Checkout charges Saudi brands in Riyals) — so re-running is safe and changes nothing.
+ * Without STRIPE_SECRET_KEY the paid tiers are written but not purchasable.
  */
-function readPlanConfig(key: (typeof PLAN_KEYS)[number]): PlanConfig | null {
-  const suffix = key.toUpperCase();
-  const stripePriceId = process.env[`STRIPE_PRICE_ID_${suffix}`];
-  const priceMinor = Number(process.env[`PLAN_PRICE_MINOR_${suffix}`]);
-  if (!stripePriceId || !Number.isInteger(priceMinor) || priceMinor <= 0) {
-    return null;
-  }
-  return { key, name: key[0].toUpperCase() + key.slice(1), stripePriceId, priceMinor };
-}
-
 export async function seedPlans(prisma: PrismaClient): Promise<void> {
-  for (const key of PLAN_KEYS) {
-    const config = readPlanConfig(key);
-    if (!config) {
-      console.warn(`Skipping plan "${key}": STRIPE_PRICE_ID_/PLAN_PRICE_MINOR_ not set.`);
-      continue;
-    }
-    const { stripePriceId, priceMinor, name } = config;
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  const stripe = secretKey ? new Stripe(secretKey) : null;
+  if (!stripe) {
+    console.warn('STRIPE_SECRET_KEY not set: paid plans are seeded without a Stripe price.');
+  }
+
+  for (const plan of PLAN_CATALOG) {
+    const stripePriceId =
+      stripe && plan.lookupKey ? await ensureStripePrice(stripe, plan, plan.lookupKey) : null;
+    const data = {
+      name: plan.name,
+      priceMinor: plan.priceMinorUsd,
+      priceMinorSar: plan.priceMinorSar,
+      currencyCode: CURRENCY_CODE,
+      maxActiveCampaigns: plan.maxActiveCampaigns,
+      platformFeeBps: plan.platformFeeBps,
+      allowsPrivateCampaigns: plan.allowsPrivateCampaigns,
+      ...(stripePriceId ? { stripePriceId } : {}),
+    };
     await prisma.plan.upsert({
-      where: { key },
-      update: { name, stripePriceId, priceMinor },
-      create: { key, name, stripePriceId, priceMinor, currencyCode: CURRENCY_CODE },
+      where: { key: plan.key },
+      update: data,
+      create: { key: plan.key, ...data },
     });
   }
+}
+
+async function ensureStripePrice(
+  stripe: Stripe,
+  plan: PlanDefinition,
+  lookupKey: string,
+): Promise<string> {
+  const existing = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
+  if (existing.data[0]) {
+    return existing.data[0].id;
+  }
+  const product = await stripe.products.create({
+    name: `Zeyoo ${plan.name}`,
+    metadata: { planKey: plan.key },
+  });
+  const price = await stripe.prices.create({
+    product: product.id,
+    lookup_key: lookupKey,
+    currency: 'usd',
+    unit_amount: plan.priceMinorUsd,
+    currency_options: { sar: { unit_amount: plan.priceMinorSar } },
+    recurring: { interval: 'month' },
+    metadata: { planKey: plan.key },
+  });
+  return price.id;
 }
 
 if (require.main === module) {

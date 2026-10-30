@@ -45,6 +45,18 @@ export class StripePaymentGateway implements PaymentGatewayPort {
             product_data: { name: input.title },
           },
         },
+        ...(input.feeMinor > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: input.currencyCode.toLowerCase(),
+                  unit_amount: input.feeMinor,
+                  product_data: { name: input.feeLabel },
+                },
+              },
+            ]
+          : []),
       ],
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
