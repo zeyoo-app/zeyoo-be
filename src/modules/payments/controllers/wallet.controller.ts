@@ -1,4 +1,13 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
@@ -8,6 +17,7 @@ import {
   WalletService,
   WalletView,
 } from '../application/wallet.service';
+import { PayoutConnectDto } from '../dto/payments.dto';
 
 @ApiTags('wallet')
 @ApiBearerAuth()
@@ -31,8 +41,11 @@ export class WalletController {
   @RequirePermission(Permission.WithdrawalRequest)
   @HttpCode(HttpStatus.OK)
   @Post('me/payout/connect')
-  connectPayout(@CurrentUser() principal: Principal): Promise<{ url: string }> {
-    return this.wallet.connectPayout(principal.userId);
+  connectPayout(
+    @CurrentUser() principal: Principal,
+    @Body() dto: PayoutConnectDto,
+  ): Promise<{ url: string }> {
+    return this.wallet.connectPayout(principal.userId, dto.client);
   }
 
   @Get('organizations/:organizationId/ledger')

@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ReviewDecision, Submission, SubmissionStatus } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { NotificationService } from '@modules/notifications/notifications.public';
@@ -61,6 +62,7 @@ export class ReviewService {
       type: 'SUBMISSION_REVIEWED',
       title: REVIEW_TITLE[dto.decision],
       body: dto.note ?? 'Open the campaign to see the details.',
+      link: AppPaths.creatorCampaignSubmissions(submission.campaignId),
     });
     return updated;
   }

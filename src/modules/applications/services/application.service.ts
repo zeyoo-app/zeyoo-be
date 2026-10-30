@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Application, ApplicationStatus, Campaign } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { CampaignService, InvitationService } from '@modules/campaigns/campaigns.public';
 import { CreatorProfileService, CreatorSummary } from '@modules/creators/creators.public';
 import { OrganizationService } from '@modules/iam/iam.public';
@@ -162,6 +163,7 @@ export class ApplicationService {
         outcome === 'APPROVED'
           ? `You can now submit content to "${campaign.title}".`
           : `The brand did not approve your application to "${campaign.title}".`,
+      link: AppPaths.creatorCampaign(campaign.id),
     });
     return decided;
   }
@@ -178,6 +180,7 @@ export class ApplicationService {
           type: 'APPLICATION_RECEIVED',
           title: 'New application',
           body: `${name} applied to "${campaign.title}".`,
+          link: AppPaths.brandCampaign(campaign.id),
         }),
       ),
     );

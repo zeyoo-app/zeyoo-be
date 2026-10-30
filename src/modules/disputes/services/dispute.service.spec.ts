@@ -106,6 +106,7 @@ describe('DisputeService.open', () => {
       'staff@zeyoo.com',
       'New dispute to review',
       expect.any(String),
+      { label: 'Open dispute queue', url: '/admin/disputes' },
     );
   });
 
@@ -202,6 +203,7 @@ describe('DisputeService.escalate', () => {
       'staff@zeyoo.com',
       'Overdue dispute escalated',
       expect.any(String),
+      { label: 'Open dispute queue', url: '/admin/disputes' },
     );
   });
 

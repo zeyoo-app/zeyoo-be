@@ -2,6 +2,7 @@ import { BadGatewayException, Inject, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Env } from '@platform/config/env.schema';
+import { AppPaths, returnUrl, type ReturnClient } from '@platform/links';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CreatorProfileService } from '@modules/creators/creators.public';
 import { OrganizationService, UserService } from '@modules/iam/iam.public';
@@ -174,8 +175,9 @@ export class WalletService {
   }
 
   /** Starts (or resumes) Stripe Connect onboarding; returns the hosted URL to send the creator to. */
-  async connectPayout(creatorUserId: string): Promise<{ url: string }> {
-    const appUrl = this.config.get('APP_WEB_URL', { infer: true });
+  async connectPayout(creatorUserId: string, client: ReturnClient = 'web'): Promise<{ url: string }> {
+    const base = this.config.get('APP_WEB_URL', { infer: true });
+    const page = AppPaths.creatorPayoutMethod;
     const existing = await this.prisma.payoutAccount.findUnique({ where: { creatorUserId } });
     const [user, identity] = await Promise.all([
       this.users.findById(creatorUserId),
@@ -187,8 +189,8 @@ export class WalletService {
         email: user?.email ?? null,
         displayName: identity?.displayName ?? user?.email ?? 'Zeyoo creator',
         country: (identity?.country ?? DEFAULT_PAYOUT_COUNTRY).toLowerCase(),
-        returnUrl: `${appUrl}/creator/payout-method?payout=return`,
-        refreshUrl: `${appUrl}/creator/payout-method?payout=refresh`,
+        returnUrl: returnUrl(base, `${page}?payout=return`, client),
+        refreshUrl: returnUrl(base, `${page}?payout=refresh`, client),
         metadata: { creatorUserId },
       })
       .catch((error: unknown) => {

@@ -9,6 +9,11 @@ export const createFundingSchema = z.object({
   client: z.enum(['web', 'app']).default('web'),
 });
 
+export const payoutConnectSchema = z.object({
+  // Which client opened Stripe onboarding: decides where Stripe sends the creator back.
+  client: z.enum(['web', 'app']).default('web'),
+});
+
 export const requestWithdrawalSchema = z.object({
   amountMinor: z.number().int().positive(),
   currencyCode: z.string().regex(CURRENCY_PATTERN, 'Must be a 3-letter ISO currency code.'),
@@ -21,3 +26,5 @@ export const holdWithdrawalSchema = z.object({
 export class CreateFundingDto extends createZodDto(createFundingSchema) {}
 export class RequestWithdrawalDto extends createZodDto(requestWithdrawalSchema) {}
 export class HoldWithdrawalDto extends createZodDto(holdWithdrawalSchema) {}
+
+export class PayoutConnectDto extends createZodDto(payoutConnectSchema) {}

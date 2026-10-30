@@ -12,7 +12,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Subscription } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
-import { SubscribeDto } from '../dto/subscribe.dto';
+import { HostedFlowDto, SubscribeDto } from '../dto/subscribe.dto';
 import { BillingService, BrandBillingView } from '../services/billing.service';
 
 @ApiTags('billing')
@@ -43,8 +43,9 @@ export class OrgSubscriptionController {
   addPaymentMethod(
     @CurrentUser() principal: Principal,
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Body() dto: HostedFlowDto,
   ): Promise<{ url: string }> {
-    return this.billing.startCardSetup(organizationId, principal.userId);
+    return this.billing.startCardSetup(organizationId, principal.userId, dto.client);
   }
 
   @RequirePermission(Permission.OrgManage)
@@ -55,6 +56,6 @@ export class OrgSubscriptionController {
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Body() dto: SubscribeDto,
   ): Promise<{ url: string }> {
-    return this.billing.startCheckout(organizationId, principal.userId, dto.planKey);
+    return this.billing.startCheckout(organizationId, principal.userId, dto.planKey, dto.client);
   }
 }

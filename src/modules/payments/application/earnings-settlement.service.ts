@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Campaign, RiskLevel } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { assessEngagement, FraudService } from '@modules/fraud/fraud.public';
 import { OrganizationService } from '@modules/iam/iam.public';
@@ -198,6 +199,7 @@ export class EarningsSettlementService {
       type: 'EARNING_CREDITED',
       title: `You earned ${amount}`,
       body: `New views on "${campaign.title}" added ${amount} to your balance.`,
+      link: AppPaths.creatorWallet,
     });
   }
 

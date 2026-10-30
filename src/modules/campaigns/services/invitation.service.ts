@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Campaign, CampaignInvitation, User } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { OrganizationService, UserService } from '@modules/iam/iam.public';
 import { CreatorProfileService, CreatorSummary } from '@modules/creators/creators.public';
 import { NotificationService } from '@modules/notifications/notifications.public';
@@ -63,6 +64,7 @@ export class InvitationService {
       type: 'CAMPAIGN_INVITE',
       title: 'You have been invited to a campaign',
       body: `You are invited to join "${campaign.title}".`,
+      link: AppPaths.creatorCampaign(campaignId),
     });
     return invitation;
   }

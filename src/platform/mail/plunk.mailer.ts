@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Env } from '@platform/config/env.schema';
+import { renderCode, renderEmail, type EmailAction } from './email-layout';
 import { Mailer } from './mailer';
 
 const PLUNK_SEND_ENDPOINT = 'https://next-api.useplunk.com/v1/send';
@@ -34,29 +35,42 @@ export class PlunkMailer extends Mailer {
     await this.send({
       to,
       subject: 'Your Zeyoo sign-in code',
-      body: codeBody(
-        'Use this code to sign in to Zeyoo, or to finish creating your account.',
-        code,
-      ),
+      body: renderEmail(this.appWebUrl(), {
+        preheader: 'Your Zeyoo sign-in code. It expires in 10 minutes.',
+        title: 'Your sign-in code',
+        paragraphs: ['Use this code to sign in to Zeyoo, or to finish creating your account.'],
+        highlightHtml: renderCode(code),
+        footnote:
+          'This code expires in 10 minutes. If you did not request it, you can safely ignore this email.',
+      }),
     });
   }
 
-  async sendNotification(to: string, subject: string, body: string): Promise<void> {
+  async sendNotification(
+    to: string,
+    subject: string,
+    body: string,
+    action?: EmailAction,
+  ): Promise<void> {
+    const base = this.appWebUrl();
     await this.send({
       to,
       subject,
-      body: [
-        `<p>${escapeHtml(body)}</p>`,
-        '<p style="color:#666">Open the Zeyoo app to see the details. You can turn email notifications off in Settings → Notifications.</p>',
-      ].join(''),
+      body: renderEmail(base, {
+        preheader: body,
+        title: subject,
+        paragraphs: [body],
+        action,
+        footnote: 'You are receiving this because of activity on your Zeyoo account.',
+        preferencesUrl: `${base.replace(/\/$/, '')}/settings/notifications`,
+      }),
     });
   }
 
   /**
-   * The code is the entire payload, so it is set in the email's own text rather
-   * than a template. No unsubscribe link: this is transactional mail triggered by
-   * the recipient's own request, and Plunk derives a plain-text alternative from
-   * the HTML so both parts carry the code.
+   * Every email is transactional, triggered by the recipient's own account activity,
+   * so there is no unsubscribe link; notification emails link to their preferences
+   * instead. Plunk derives a plain-text alternative from the HTML.
    */
   private async send(message: { to: string; subject: string; body: string }): Promise<void> {
     const apiKey = this.config.get('PLUNK_API_KEY', { infer: true });
@@ -101,6 +115,10 @@ export class PlunkMailer extends Mailer {
     }
   }
 
+  private appWebUrl(): string {
+    return this.config.get('APP_WEB_URL', { infer: true });
+  }
+
   /**
    * MAIL_FROM accepts both a bare address and RFC 5322 display-name form; Plunk
    * takes them as separate fields, so the name is split out when present.
@@ -117,24 +135,4 @@ export class PlunkMailer extends Mailer {
 /** The part of an address after the @, for log lines. Falls back to the whole value. */
 function domainOf(address: string): string {
   return address.slice(address.indexOf('@') + 1) || address;
-}
-
-/** Shared layout for both code emails — deliberately plain and unstyled. */ function codeBody(
-  leadIn: string,
-  code: string,
-): string {
-  return [
-    `<p>${leadIn}</p>`,
-    `<p style="font-size:28px;font-weight:700;letter-spacing:6px;margin:24px 0">${code}</p>`,
-    '<p style="color:#666">This code expires in 10 minutes.</p>',
-    '<p style="color:#666">If you did not request this, you can safely ignore this email.</p>',
-  ].join('');
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

@@ -69,6 +69,34 @@ describe('PlunkMailer', () => {
     expect(sentBody(fetchMock).body as string).toContain('123456');
   });
 
+  it('sends notifications in the branded layout with a button to the page', async () => {
+    const mailer = new PlunkMailer(
+      configWith({ PLUNK_API_KEY: 'sk_test_key', APP_WEB_URL: 'https://zeyoo.app' }),
+    );
+
+    await mailer.sendNotification('brand@example.com', 'New application', 'Sara applied.', {
+      label: 'Review application',
+      url: '/brand/campaigns/c-1',
+    });
+
+    const html = sentBody(fetchMock).body as string;
+    expect(sentBody(fetchMock).subject).toBe('New application');
+    expect(html).toContain('https://zeyoo.app/brand/wordmark.png');
+    expect(html).toContain('href="https://zeyoo.app/brand/campaigns/c-1"');
+    expect(html).toContain('Review application');
+    expect(html).toContain('href="https://zeyoo.app/settings/notifications"');
+  });
+
+  it('escapes user-supplied text in notification emails', async () => {
+    const mailer = new PlunkMailer(configWith({ PLUNK_API_KEY: 'sk_test_key' }));
+
+    await mailer.sendNotification('brand@example.com', 'New <b>', '"<script>"');
+
+    const html = sentBody(fetchMock).body as string;
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+
   it('splits a display-name MAIL_FROM into Plunk name and email fields', async () => {
     const mailer = new PlunkMailer(
       configWith({ PLUNK_API_KEY: 'sk_test_key', MAIL_FROM: 'Zeyoo <no-reply@zeyoo.app>' }),

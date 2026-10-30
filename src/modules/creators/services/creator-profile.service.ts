@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreatorProfile, Prisma, SocialAccount, SocialPlatform } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { NotificationService } from '@modules/notifications/notifications.public';
 import { CreateCreatorProfileDto, UpdateCreatorProfileDto } from '../dto/creator-profile.dto';
 
@@ -145,6 +146,7 @@ export class CreatorProfileService {
         decision === 'VERIFIED'
           ? 'Brands can now see your verified badge.'
           : `Your request was not approved: ${note ?? 'no reason given'}. You can fix this and request again.`,
+      link: AppPaths.creatorProfile,
     });
     return reviewed;
   }

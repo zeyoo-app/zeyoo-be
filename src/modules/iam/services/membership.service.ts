@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Membership, OrgRole, User } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { Mailer } from '@platform/mail';
 import { OrganizationService } from './organization.service';
 import { UserService } from './user.service';
@@ -75,6 +76,7 @@ export class MembershipService {
         email,
         `You were added to ${organization?.name ?? 'a brand'} on Zeyoo`,
         `You can now manage ${organization?.name ?? 'the brand'}'s campaigns. Sign in to Zeyoo with this email address to get started.`,
+        { label: 'Sign in to Zeyoo', url: AppPaths.signIn },
       );
     } catch {
       // The membership stands even if the email cannot go out; the owner sees the teammate listed.
