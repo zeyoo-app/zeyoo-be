@@ -4,6 +4,7 @@ import { DirectoryQueryDto } from '../dto/directory-query.dto';
 import {
   CreatorProfileService,
   CreatorProfileWithAccounts,
+  PublicCreatorProfile,
 } from '../services/creator-profile.service';
 
 @ApiTags('creators')
@@ -23,7 +24,7 @@ export class CreatorsDirectoryController {
   @Get(':creatorUserId')
   get(
     @Param('creatorUserId', ParseUUIDPipe) creatorUserId: string,
-  ): Promise<CreatorProfileWithAccounts> {
+  ): Promise<PublicCreatorProfile> {
     return this.profiles.getPublicByUserId(creatorUserId);
   }
 }

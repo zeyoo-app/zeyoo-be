@@ -112,3 +112,29 @@ describe('CreatorProfileService.create', () => {
     });
   });
 });
+
+describe('CreatorProfileService.getPublicByUserId', () => {
+  it('shows brands the track record and never the staff review note', async () => {
+    const profile = {
+      ...buildProfile('REJECTED'),
+      verificationNote: 'ID photo was blurry',
+      createdAt: new Date('2026-09-01'),
+      socialAccounts: [],
+    };
+    const prisma = {
+      creatorProfile: { findUnique: jest.fn().mockResolvedValue(profile) },
+      application: { count: jest.fn().mockResolvedValue(3) },
+      submission: { count: jest.fn().mockResolvedValue(7) },
+    } as unknown as PrismaService;
+    const service = new CreatorProfileService(prisma, { notify: jest.fn() } as never);
+
+    const visible = await service.getPublicByUserId('user-1');
+
+    expect(visible).not.toHaveProperty('verificationNote');
+    expect(visible.trackRecord).toEqual({
+      campaignsJoined: 3,
+      approvedSubmissions: 7,
+      memberSince: new Date('2026-09-01'),
+    });
+  });
+});

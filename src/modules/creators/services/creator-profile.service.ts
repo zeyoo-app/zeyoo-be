@@ -7,6 +7,20 @@ import { CreateCreatorProfileDto, UpdateCreatorProfileDto } from '../dto/creator
 
 export type CreatorProfileWithAccounts = CreatorProfile & { socialAccounts: SocialAccount[] };
 
+/** What a creator has done on Zeyoo, shown to a brand weighing their application. */
+export interface CreatorTrackRecord {
+  /** Campaigns a brand approved them to join. */
+  campaignsJoined: number;
+  /** Posts brands approved. */
+  approvedSubmissions: number;
+  memberSince: Date;
+}
+
+/** A creator as brands see them: no staff-only review notes. */
+export type PublicCreatorProfile = Omit<CreatorProfileWithAccounts, 'verificationNote'> & {
+  trackRecord: CreatorTrackRecord;
+};
+
 export interface CreatorSummary {
   displayName: string;
   username: string;
@@ -151,7 +165,7 @@ export class CreatorProfileService {
     return reviewed;
   }
 
-  async getPublicByUserId(creatorUserId: string): Promise<CreatorProfileWithAccounts> {
+  async getPublicByUserId(creatorUserId: string): Promise<PublicCreatorProfile> {
     const profile = await this.prisma.creatorProfile.findUnique({
       where: { userId: creatorUserId },
       include: { socialAccounts: CONNECTED_ACCOUNTS },
@@ -159,7 +173,17 @@ export class CreatorProfileService {
     if (!profile) {
       throw new NotFoundException('Creator profile not found.');
     }
-    return profile;
+    const [campaignsJoined, approvedSubmissions] = await Promise.all([
+      this.prisma.application.count({ where: { creatorUserId, status: 'APPROVED' } }),
+      this.prisma.submission.count({ where: { creatorUserId, status: 'APPROVED' } }),
+    ]);
+    // The staff note explains a rejected verification to the creator alone.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { verificationNote, ...visible } = profile;
+    return {
+      ...visible,
+      trackRecord: { campaignsJoined, approvedSubmissions, memberSince: profile.createdAt },
+    };
   }
 
   listDirectory(filter: DirectoryFilter): Promise<CreatorProfileWithAccounts[]> {
