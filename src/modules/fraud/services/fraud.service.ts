@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { FraudCase, FraudCaseStatus, RiskLevel } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { CreatorProfileService } from '@modules/creators/creators.public';
 import { OrganizationService } from '@modules/iam/iam.public';
@@ -65,6 +66,7 @@ export class FraudService {
       type: 'FRAUD_FLAGGED',
       title: 'Earnings paused on a campaign',
       body: `"${campaign.title}" is under review. New earnings are paused until it is cleared. You can dispute this from your submissions.`,
+      link: AppPaths.creatorCampaignSubmissions(campaignId),
     });
     return fraudCase;
   }
@@ -163,6 +165,7 @@ export class FraudService {
       body: cleared
         ? `The review on "${campaign.title}" is cleared and your earnings continue.`
         : `The review on "${campaign.title}" confirmed a problem. No further earnings will be added to that campaign.`,
+      link: AppPaths.creatorCampaignSubmissions(fraudCase.campaignId),
     });
   }
 

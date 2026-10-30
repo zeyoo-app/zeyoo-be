@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Dispute, DisputeEvent, DisputeStatus, DisputeSubjectType } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { Mailer } from '@platform/mail';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { CreatorProfileService } from '@modules/creators/creators.public';
@@ -425,7 +426,12 @@ export class DisputeService {
   private async emailStaff(subject: string, body: string): Promise<void> {
     const emails = await this.staff.activeEmails();
     await Promise.allSettled(
-      emails.map((email) => this.mailer.sendNotification(email, subject, body)),
+      emails.map((email) =>
+        this.mailer.sendNotification(email, subject, body, {
+          label: 'Open dispute queue',
+          url: AppPaths.adminDisputes,
+        }),
+      ),
     );
   }
 
@@ -435,6 +441,7 @@ export class DisputeService {
       type: 'DISPUTE_UPDATED',
       title,
       body,
+      link: AppPaths.dispute(dispute.id),
     });
   }
 

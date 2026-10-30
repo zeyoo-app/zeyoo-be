@@ -53,6 +53,7 @@ describe('MembershipService.invite', () => {
       'new@example.com',
       'You were added to Acme on Zeyoo',
       expect.stringContaining('Sign in to Zeyoo with this email'),
+      { label: 'Sign in to Zeyoo', url: '/sign-in' },
     );
   });
 

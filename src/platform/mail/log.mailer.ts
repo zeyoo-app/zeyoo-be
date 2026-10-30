@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { EmailAction } from './email-layout';
 import { Mailer } from './mailer';
 
 /**
@@ -15,7 +16,13 @@ export class LogMailer extends Mailer {
     this.logger.log(`[sign-in] to=${to} code=${code}`);
   }
 
-  async sendNotification(to: string, subject: string, body: string): Promise<void> {
-    this.logger.log(`[notification] to=${to} subject="${subject}" body="${body}"`);
+  async sendNotification(
+    to: string,
+    subject: string,
+    body: string,
+    action?: EmailAction,
+  ): Promise<void> {
+    const link = action ? ` link=${action.url}` : '';
+    this.logger.log(`[notification] to=${to} subject="${subject}" body="${body}"${link}`);
   }
 }

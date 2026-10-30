@@ -32,7 +32,7 @@ function buildCampaign(overrides: Partial<Campaign> = {}): Campaign {
 function setup(campaign: Campaign): { service: ApplicationService; mocks: Mocks } {
   const mocks: Mocks = {
     requireCampaign: jest.fn().mockResolvedValue(campaign),
-    hasPendingInvitation: jest.fn(),
+    hasPendingInvitation: jest.fn().mockResolvedValue(false),
     markAccepted: jest.fn().mockResolvedValue(undefined),
     assertMember: jest.fn().mockResolvedValue(undefined),
     findExisting: jest.fn().mockResolvedValue(null),
@@ -109,6 +109,16 @@ describe('ApplicationService.apply', () => {
 
   it('creates an invitation application when the creator has a pending invite', async () => {
     const { service, mocks } = setup(buildCampaign({ visibility: 'PRIVATE' }));
+    mocks.hasPendingInvitation.mockResolvedValue(true);
+
+    const application = await service.apply('campaign-1', 'creator-1', acceptTerms);
+
+    expect(application.source).toBe('INVITATION');
+    expect(mocks.markAccepted).toHaveBeenCalledWith('campaign-1', 'creator-1');
+  });
+
+  it('accepts the invitation when an invited creator applies to a public campaign', async () => {
+    const { service, mocks } = setup(buildCampaign({ visibility: 'PUBLIC' }));
     mocks.hasPendingInvitation.mockResolvedValue(true);
 
     const application = await service.apply('campaign-1', 'creator-1', acceptTerms);

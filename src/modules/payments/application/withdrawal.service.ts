@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Withdrawal } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { Money } from '../domain/money';
 import { PAYMENT_GATEWAY, PaymentGatewayPort } from '../domain/ports/payment-gateway.port';
 import { NotificationService } from '@modules/notifications/notifications.public';
@@ -62,7 +63,13 @@ export class WithdrawalService {
   }
 
   private tell(withdrawal: Withdrawal, type: string, title: string, body: string): Promise<void> {
-    return this.notifications.notify({ userId: withdrawal.creatorUserId, type, title, body });
+    return this.notifications.notify({
+      userId: withdrawal.creatorUserId,
+      type,
+      title,
+      body,
+      link: AppPaths.creatorWallet,
+    });
   }
 
   /** Throws unless the withdrawal exists and belongs to this creator. */

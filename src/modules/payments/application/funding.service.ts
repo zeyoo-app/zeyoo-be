@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@platform/database/prisma.service';
 import { Env } from '@platform/config/env.schema';
+import { AppPaths, appUrl, returnUrl, type ReturnClient } from '@platform/links';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { EntitlementsService } from '@modules/entitlements/entitlements.public';
 import { OrganizationService } from '@modules/iam/iam.public';
@@ -146,12 +147,18 @@ export class FundingService {
     return (funded._sum.amount ?? 0) - (refunded._sum.amount ?? 0);
   }
 
+  /**
+   * The web app waits on /funding/return, which publishes the campaign once paid. The
+   * mobile app does that itself while Stripe is open, so it is just handed the campaign.
+   */
   private returnUrl(
     campaignId: string,
-    client: 'web' | 'app',
+    client: ReturnClient,
     outcome: 'paid' | 'cancelled',
   ): string {
-    const base = this.config.get('APP_WEB_URL', { infer: true }).replace(/\/$/, '');
-    return `${base}/funding/return?campaignId=${campaignId}&client=${client}&outcome=${outcome}`;
+    const base = this.config.get('APP_WEB_URL', { infer: true });
+    return client === 'app'
+      ? returnUrl(base, `${AppPaths.brandCampaign(campaignId)}?funding=${outcome}`, 'app')
+      : appUrl(base, `/funding/return?campaignId=${campaignId}&client=web&outcome=${outcome}`);
   }
 }

@@ -1,6 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Notification, NotificationPreference } from '@prisma/client';
+import { Env } from '@platform/config/env.schema';
 import { PrismaService } from '@platform/database/prisma.service';
+import { appUrl } from '@platform/links';
 import { Mailer } from '@platform/mail';
 import { UpdatePreferencesDto } from '../dto/notification.dto';
 import { PushSender } from '../push-sender';
@@ -30,11 +33,34 @@ function isCategoryEnabled(type: string, preferences: CategoryPreferences | null
   return !preferences || !category || preferences[category];
 }
 
+/** The email button for each notification type; anything else gets the generic label. */
+const ACTION_LABEL_BY_TYPE: Record<string, string> = {
+  CAMPAIGN_INVITE: 'View invitation',
+  APPLICATION_RECEIVED: 'Review application',
+  APPLICATION_REVIEWED: 'Open campaign',
+  SUBMISSION_RECEIVED: 'Review submission',
+  SUBMISSION_REVIEWED: 'View submission',
+  EARNING_CREDITED: 'View wallet',
+  WITHDRAWAL_HELD: 'View wallet',
+  WITHDRAWAL_RELEASED: 'View wallet',
+  WITHDRAWAL_REJECTED: 'View wallet',
+  WITHDRAWAL_PAID: 'View wallet',
+  CAMPAIGN_REFUNDED: 'View campaign',
+  FRAUD_FLAGGED: 'View campaign',
+  FRAUD_CLEARED: 'View campaign',
+  FRAUD_CONFIRMED: 'View campaign',
+  DISPUTE_UPDATED: 'View dispute',
+  VERIFICATION_REVIEWED: 'View profile',
+};
+const DEFAULT_ACTION_LABEL = 'Open Zeyoo';
+
 export interface NewNotification {
   userId: string;
   type: string;
   title: string;
   body: string;
+  /** Path of the page it is about (see AppPaths); opened on tap in every channel. */
+  link?: string;
 }
 
 @Injectable()
@@ -45,6 +71,7 @@ export class NotificationService {
     private readonly prisma: PrismaService,
     private readonly push: PushSender,
     private readonly mailer: Mailer,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   // For notifying as a side effect of something that has already succeeded: a
@@ -148,7 +175,11 @@ export class NotificationService {
         select: { email: true },
       });
       if (user?.email) {
-        await this.mailer.sendNotification(user.email, notification.title, notification.body);
+        const link = notification.link ?? '/notifications';
+        await this.mailer.sendNotification(user.email, notification.title, notification.body, {
+          label: ACTION_LABEL_BY_TYPE[notification.type] ?? DEFAULT_ACTION_LABEL,
+          url: appUrl(this.config.get('APP_WEB_URL', { infer: true }), link),
+        });
       }
     } catch (error) {
       this.logger.warn(`Could not email user ${notification.userId}: ${String(error)}`);
@@ -165,7 +196,11 @@ export class NotificationService {
     }
     const invalid = await this.push.send(
       devices.map((device) => device.token),
-      { title: notification.title, body: notification.body, data: { type: notification.type } },
+      {
+        title: notification.title,
+        body: notification.body,
+        data: { type: notification.type, ...(notification.link ? { link: notification.link } : {}) },
+      },
     );
     if (invalid.length > 0) {
       await this.prisma.deviceToken.deleteMany({ where: { token: { in: invalid } } });

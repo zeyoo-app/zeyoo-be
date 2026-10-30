@@ -62,6 +62,7 @@ function build({
       prisma as never,
       { send } as never,
       { sendNotification } as never,
+      { get: jest.fn().mockReturnValue('https://zeyoo.app') } as never,
     ),
     send,
     deleteTokens,
@@ -146,7 +147,27 @@ describe('NotificationService.notify by email', () => {
 
     await service.notify(NOTIFICATION);
 
-    expect(sendNotification).toHaveBeenCalledWith('creator@example.com', 'You earned $5', 'Nice.');
+    expect(sendNotification).toHaveBeenCalledWith('creator@example.com', 'You earned $5', 'Nice.', {
+      label: 'View wallet',
+      url: 'https://zeyoo.app/notifications',
+    });
+  });
+
+  it('links the email button and the push to the page the notification is about', async () => {
+    const { service, sendNotification, send } = build();
+
+    await service.notify({ ...NOTIFICATION, link: '/creator/wallet' });
+
+    expect(sendNotification).toHaveBeenCalledWith(
+      'creator@example.com',
+      'You earned $5',
+      'Nice.',
+      { label: 'View wallet', url: 'https://zeyoo.app/creator/wallet' },
+    );
+    expect(send).toHaveBeenCalledWith(
+      ['ExponentPushToken[a]'],
+      expect.objectContaining({ data: { type: 'EARNING_CREDITED', link: '/creator/wallet' } }),
+    );
   });
 
   it('does not email when the user turned email notifications off', async () => {

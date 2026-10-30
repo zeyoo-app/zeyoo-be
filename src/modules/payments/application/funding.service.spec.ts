@@ -126,9 +126,9 @@ describe('FundingService with Stripe Checkout', () => {
       feeLabel: 'Zeyoo platform fee (10%)',
       currencyCode: 'USD',
       successUrl:
-        'https://www.zeyoo.app/funding/return?campaignId=campaign-1&client=app&outcome=paid',
+        'https://www.zeyoo.app/app-return?to=%2Fbrand%2Fcampaigns%2Fcampaign-1%3Ffunding%3Dpaid',
       cancelUrl:
-        'https://www.zeyoo.app/funding/return?campaignId=campaign-1&client=app&outcome=cancelled',
+        'https://www.zeyoo.app/app-return?to=%2Fbrand%2Fcampaigns%2Fcampaign-1%3Ffunding%3Dcancelled',
     });
   });
 

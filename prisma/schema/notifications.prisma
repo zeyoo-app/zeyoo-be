@@ -8,6 +8,8 @@ model Notification {
   type      String
   title     String
   body      String
+  // Path of the page it is about, e.g. /brand/campaigns/<id>; the apps open it on tap.
+  link      String?
   readAt    DateTime?
   createdAt DateTime  @default(now())
 

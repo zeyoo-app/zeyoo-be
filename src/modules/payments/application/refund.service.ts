@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { CampaignFunding, CampaignRefund } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { Env } from '@platform/config/env.schema';
+import { AppPaths } from '@platform/links';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { NotificationService } from '@modules/notifications/notifications.public';
@@ -76,6 +77,7 @@ export class RefundService {
       type: 'CAMPAIGN_REFUNDED',
       title: 'Unspent budget refunded',
       body: `${(refunded / MINOR_UNITS_PER_MAJOR).toFixed(2)} ${campaign.currencyCode} from "${campaign.title}" is on its way back to your card.`,
+      link: AppPaths.brandCampaign(campaign.id),
     });
     return { refundedMinor: refunded, currencyCode: campaign.currencyCode, refunds: count };
   }

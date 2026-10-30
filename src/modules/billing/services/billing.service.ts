@@ -3,6 +3,7 @@ import { Plan, Subscription } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { Env } from '@platform/config/env.schema';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths, returnUrl, type ReturnClient } from '@platform/links';
 import { EntitlementsService } from '@modules/entitlements/entitlements.public';
 import { MembershipService, OrganizationService } from '@modules/iam/iam.public';
 import { WalletService } from '@modules/payments/payments.public';
@@ -55,17 +56,19 @@ export class BillingService {
     organizationId: string,
     requesterId: string,
     planKey: string,
+    client: ReturnClient = 'web',
   ): Promise<{ url: string }> {
     await this.memberships.assertOwner(organizationId, requesterId);
     const plan = await this.requirePurchasablePlan(planKey);
 
-    const appUrl = this.config.get('APP_WEB_URL', { infer: true });
+    const base = this.config.get('APP_WEB_URL', { infer: true });
+    const page = AppPaths.brandSubscription;
     const checkout = await this.gateway.createSubscriptionCheckout({
       organizationId,
       planKey,
       priceId: plan.stripePriceId as string,
-      successUrl: `${appUrl}/brand/subscription?checkout=success`,
-      cancelUrl: `${appUrl}/brand/subscription?checkout=cancel`,
+      successUrl: returnUrl(base, `${page}?checkout=success`, client),
+      cancelUrl: returnUrl(base, `${page}?checkout=cancel`, client),
     });
     await this.prisma.subscription.upsert({
       where: { organizationId },
@@ -95,13 +98,18 @@ export class BillingService {
   }
 
   /** Starts the hosted card-save flow; the client opens the returned URL. */
-  async startCardSetup(organizationId: string, requesterId: string): Promise<{ url: string }> {
+  async startCardSetup(
+    organizationId: string,
+    requesterId: string,
+    client: ReturnClient = 'web',
+  ): Promise<{ url: string }> {
     await this.memberships.assertOwner(organizationId, requesterId);
-    const appUrl = this.config.get('APP_WEB_URL', { infer: true });
+    const base = this.config.get('APP_WEB_URL', { infer: true });
+    const page = AppPaths.brandPaymentMethod;
     return this.gateway.createCardSetupCheckout({
       organizationId,
-      successUrl: `${appUrl}/brand/payment-method?card=saved`,
-      cancelUrl: `${appUrl}/brand/payment-method?card=cancel`,
+      successUrl: returnUrl(base, `${page}?card=saved`, client),
+      cancelUrl: returnUrl(base, `${page}?card=cancel`, client),
     });
   }
 

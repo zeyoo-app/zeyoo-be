@@ -12,6 +12,7 @@ import {
   SubmissionStatus,
 } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { AppPaths } from '@platform/links';
 import { ApplicationService } from '@modules/applications/applications.public';
 import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { OrganizationService } from '@modules/iam/iam.public';
@@ -97,6 +98,7 @@ export class SubmissionService {
           type: 'SUBMISSION_RECEIVED',
           title: 'New submission to review',
           body: `${summary?.displayName ?? 'A creator'} ${action} "${campaign.title}".`,
+          link: AppPaths.brandCampaign(campaign.id),
         }),
       ),
     );
