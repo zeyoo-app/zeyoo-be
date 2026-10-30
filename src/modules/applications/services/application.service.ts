@@ -189,18 +189,20 @@ export class ApplicationService {
     }
   }
 
+  /**
+   * Whether this application answers an invitation. Brands can invite creators to public
+   * campaigns too, so the invitation is checked either way; only a private campaign
+   * requires one.
+   */
   private async resolveInvitationEligibility(
     campaign: Campaign,
     creatorUserId: string,
   ): Promise<boolean> {
-    if (campaign.visibility === 'PUBLIC') {
-      return false;
-    }
     const invited = await this.invitations.hasPendingInvitation(campaign.id, creatorUserId);
-    if (!invited) {
+    if (!invited && campaign.visibility === 'PRIVATE') {
       throw new ForbiddenException('This campaign is private; an invitation is required to apply.');
     }
-    return true;
+    return invited;
   }
 
   private async assertNotAlreadyApplied(campaignId: string, creatorUserId: string): Promise<void> {

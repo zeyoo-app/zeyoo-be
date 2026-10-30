@@ -106,7 +106,13 @@ export class InvitationService {
   /** The creator's own invitations that are still waiting for an answer, newest first. */
   listPendingForCreator(creatorUserId: string): Promise<InvitationWithCampaign[]> {
     return this.prisma.campaignInvitation.findMany({
-      where: { creatorUserId, status: 'PENDING', campaign: { status: 'PUBLISHED' } },
+      // A creator who already applied has answered, even if the invitation predates the
+      // fix that marks it accepted on applying.
+      where: {
+        creatorUserId,
+        status: 'PENDING',
+        campaign: { status: 'PUBLISHED', applications: { none: { creatorUserId } } },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         campaign: {
