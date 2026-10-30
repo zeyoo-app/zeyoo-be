@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Campaign } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { EntitlementsService } from '@modules/entitlements/entitlements.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { CreateCampaignDto, UpdateCampaignDto } from '../dto/campaign.dto';
 import { CategoryService } from './category.service';
@@ -32,6 +33,7 @@ export class CampaignService {
     private readonly prisma: PrismaService,
     private readonly organizations: OrganizationService,
     private readonly categories: CategoryService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async create(
@@ -89,6 +91,8 @@ export class CampaignService {
   async publish(campaignId: string, requesterId: string): Promise<Campaign> {
     const campaign = await this.loadManageable(campaignId, requesterId);
     this.assertDraft(campaign);
+    await this.assertFunded(campaign);
+    await this.assertWithinPlan(campaign);
     return this.prisma.campaign.update({
       where: { id: campaign.id },
       data: { status: 'PUBLISHED', publishedAt: new Date() },
@@ -208,6 +212,43 @@ export class CampaignService {
   private assertDraft(campaign: Campaign): void {
     if (campaign.status !== 'DRAFT') {
       throw new ConflictException('Only a draft campaign can be modified.');
+    }
+  }
+
+  /** Creators may only join a campaign whose whole budget has been paid in. */
+  private async assertFunded(campaign: Campaign): Promise<void> {
+    const [funded, refunded] = await Promise.all([
+      this.prisma.campaignFunding.aggregate({
+        _sum: { amount: true },
+        where: { campaignId: campaign.id, status: 'SUCCEEDED' },
+      }),
+      this.prisma.campaignRefund.aggregate({
+        _sum: { amount: true },
+        where: { campaignId: campaign.id, status: { in: ['PENDING', 'SUCCEEDED'] } },
+      }),
+    ]);
+    const paid = (funded._sum.amount ?? 0) - (refunded._sum.amount ?? 0);
+    if (paid < campaign.budgetAmount) {
+      throw new ConflictException('Fund the campaign budget before publishing it.');
+    }
+  }
+
+  private async assertWithinPlan(campaign: Campaign): Promise<void> {
+    const plan = await this.entitlements.forOrganization(campaign.organizationId);
+    if (campaign.visibility === 'PRIVATE' && !plan.allowsPrivateCampaigns) {
+      throw new ForbiddenException(
+        'Invite-only campaigns need the Growth or Scale plan. Upgrade from Subscription.',
+      );
+    }
+    if (plan.maxActiveCampaigns !== null) {
+      const live = await this.prisma.campaign.count({
+        where: { organizationId: campaign.organizationId, status: 'PUBLISHED' },
+      });
+      if (live >= plan.maxActiveCampaigns) {
+        throw new ForbiddenException(
+          `Your plan allows ${plan.maxActiveCampaigns} live campaign${plan.maxActiveCampaigns === 1 ? '' : 's'} at a time. Close one or upgrade from Subscription.`,
+        );
+      }
     }
   }
 

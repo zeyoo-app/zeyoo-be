@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { Campaign, CampaignStatus, CampaignVisibility } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
+import { EntitlementsService, type PlanEntitlements } from '@modules/entitlements/entitlements.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { CampaignService } from './campaign.service';
 import { CategoryService } from './category.service';
@@ -10,6 +11,9 @@ interface Mocks {
   isMember: jest.Mock;
   assertMember: jest.Mock;
   findInvitation: jest.Mock;
+  fundedSum: jest.Mock;
+  liveCount: jest.Mock;
+  plan: jest.Mock;
 }
 
 function buildCampaign(overrides: Partial<Campaign> = {}): Campaign {
@@ -47,26 +51,40 @@ function buildCampaign(overrides: Partial<Campaign> = {}): Campaign {
   };
 }
 
+const STARTER: PlanEntitlements = {
+  planKey: 'starter',
+  maxActiveCampaigns: 1,
+  platformFeeBps: 1000,
+  allowsPrivateCampaigns: false,
+};
+
 function setup(campaign: Campaign): { service: CampaignService; mocks: Mocks } {
   const mocks: Mocks = {
     findUnique: jest.fn().mockResolvedValue(campaign),
     isMember: jest.fn(),
     assertMember: jest.fn().mockResolvedValue(undefined),
     findInvitation: jest.fn().mockResolvedValue(null),
+    fundedSum: jest.fn().mockResolvedValue({ _sum: { amount: campaign.budgetAmount } }),
+    liveCount: jest.fn().mockResolvedValue(0),
+    plan: jest.fn().mockResolvedValue(STARTER),
   };
   const prisma = {
     campaign: {
       findUnique: mocks.findUnique,
       update: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...campaign, ...data })),
+      count: mocks.liveCount,
     },
     campaignInvitation: { findFirst: mocks.findInvitation },
+    campaignFunding: { aggregate: mocks.fundedSum },
+    campaignRefund: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }) },
   } as unknown as PrismaService;
   const organizations = {
     isMember: mocks.isMember,
     assertMember: mocks.assertMember,
   } as unknown as OrganizationService;
   const categories = { assertExists: jest.fn() } as unknown as CategoryService;
-  return { service: new CampaignService(prisma, organizations, categories), mocks };
+  const entitlements = { forOrganization: mocks.plan } as unknown as EntitlementsService;
+  return { service: new CampaignService(prisma, organizations, categories, entitlements), mocks };
 }
 
 describe('CampaignService lifecycle guards', () => {
@@ -80,6 +98,59 @@ describe('CampaignService lifecycle guards', () => {
     const { service } = setup(buildCampaign({ status: 'DRAFT' }));
 
     await expect(service.close('campaign-1', 'user-1')).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('CampaignService.publish', () => {
+  const draft = (): Campaign => buildCampaign({ visibility: 'PUBLIC' });
+
+  it('publishes a fully funded draft within the plan', async () => {
+    const { service } = setup(draft());
+
+    await expect(service.publish('campaign-1', 'user-1')).resolves.toMatchObject({
+      status: 'PUBLISHED',
+    });
+  });
+
+  it('refuses a campaign whose budget has not been paid', async () => {
+    const { service, mocks } = setup(draft());
+    mocks.fundedSum.mockResolvedValue({ _sum: { amount: null } });
+
+    await expect(service.publish('campaign-1', 'user-1')).rejects.toThrow(
+      'Fund the campaign budget before publishing it.',
+    );
+  });
+
+  it('refuses a partly funded campaign', async () => {
+    const { service, mocks } = setup(draft());
+    mocks.fundedSum.mockResolvedValue({ _sum: { amount: 40_000 } });
+
+    await expect(service.publish('campaign-1', 'user-1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('refuses going over the plan live-campaign limit', async () => {
+    const { service, mocks } = setup(draft());
+    mocks.liveCount.mockResolvedValue(1);
+
+    await expect(service.publish('campaign-1', 'user-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('allows unlimited live campaigns on a plan without a limit', async () => {
+    const { service, mocks } = setup(draft());
+    mocks.liveCount.mockResolvedValue(40);
+    mocks.plan.mockResolvedValue({ ...STARTER, maxActiveCampaigns: null });
+
+    await expect(service.publish('campaign-1', 'user-1')).resolves.toBeDefined();
+  });
+
+  it('refuses an invite-only campaign on a plan without them', async () => {
+    const { service } = setup(buildCampaign({ visibility: 'PRIVATE' }));
+
+    await expect(service.publish('campaign-1', 'user-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 });
 

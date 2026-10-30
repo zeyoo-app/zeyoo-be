@@ -3,6 +3,7 @@ import { Plan, Subscription } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { Env } from '@platform/config/env.schema';
 import { PrismaService } from '@platform/database/prisma.service';
+import { EntitlementsService } from '@modules/entitlements/entitlements.public';
 import { MembershipService, OrganizationService } from '@modules/iam/iam.public';
 import { WalletService } from '@modules/payments/payments.public';
 import { BILLING_GATEWAY, BillingGatewayPort } from '../ports/billing-gateway.port';
@@ -14,6 +15,8 @@ export interface BrandBillingView {
   monthlySpend: { minorUnits: number; currency: string };
   totalFunded: { minorUnits: number; currency: string };
   paymentMethodLast4?: string;
+  /** Fee added on top of each campaign budget at checkout, in basis points. */
+  platformFeeBps: number;
 }
 
 const PLAN_LABELS: Record<string, BillingPlanLabel> = {
@@ -34,6 +37,7 @@ export class BillingService {
     private readonly organizations: OrganizationService,
     private readonly memberships: MembershipService,
     private readonly wallet: WalletService,
+    private readonly entitlements: EntitlementsService,
     private readonly config: ConfigService<Env, true>,
     @Inject(BILLING_GATEWAY) private readonly gateway: BillingGatewayPort,
   ) {}
@@ -74,10 +78,11 @@ export class BillingService {
   /** The brand billing summary shown on the subscription and wallet screens. */
   async getBilling(organizationId: string, requesterId: string): Promise<BrandBillingView> {
     await this.organizations.assertMember(organizationId, requesterId);
-    const [subscription, paymentMethod, totals] = await Promise.all([
+    const [subscription, paymentMethod, totals, entitlements] = await Promise.all([
       this.prisma.subscription.findUnique({ where: { organizationId } }),
       this.prisma.billingPaymentMethod.findUnique({ where: { organizationId } }),
       this.wallet.organizationTotals(organizationId),
+      this.entitlements.forOrganization(organizationId),
     ]);
     const active = subscription?.status === 'ACTIVE' ? subscription.planKey : null;
     return {
@@ -85,6 +90,7 @@ export class BillingService {
       monthlySpend: totals.monthlySpend,
       totalFunded: totals.totalFunded,
       paymentMethodLast4: paymentMethod?.last4,
+      platformFeeBps: entitlements.platformFeeBps,
     };
   }
 

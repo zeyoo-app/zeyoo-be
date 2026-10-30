@@ -32,6 +32,7 @@ describe('FundingService', () => {
       campaigns as never,
       organizations as never,
       ledger as never,
+      { forOrganization: jest.fn().mockResolvedValue({ platformFeeBps: 1000 }) } as never,
       config as never,
       gateway as never,
     );
@@ -85,6 +86,7 @@ describe('FundingService with Stripe Checkout', () => {
           findFirst: jest.fn().mockResolvedValue({
             id: 'funding-1',
             amount: 50_000,
+            feeAmount: 5_000,
             currencyCode: 'USD',
             status: 'PENDING',
           }),
@@ -100,6 +102,7 @@ describe('FundingService with Stripe Checkout', () => {
       } as never,
       { assertMember: jest.fn().mockResolvedValue(undefined) } as never,
       {} as never,
+      { forOrganization: jest.fn().mockResolvedValue({ platformFeeBps: 1000 }) } as never,
       config as never,
       { createFundingCheckout } as never,
     );
@@ -116,8 +119,11 @@ describe('FundingService with Stripe Checkout', () => {
       checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_123',
     });
     expect(create.mock.calls[0][0].data.stripePaymentIntentId).toBe('cs_test_123');
+    expect(create.mock.calls[0][0].data.feeAmount).toBe(5_000);
     expect(createFundingCheckout.mock.calls[0][0]).toMatchObject({
       amountMinor: 50_000,
+      feeMinor: 5_000,
+      feeLabel: 'Zeyoo platform fee (10%)',
       currencyCode: 'USD',
       successUrl:
         'https://www.zeyoo.app/funding/return?campaignId=campaign-1&client=app&outcome=paid',
@@ -134,6 +140,7 @@ describe('FundingService with Stripe Checkout', () => {
     expect(latest).toEqual({
       fundingId: 'funding-1',
       amountMinor: 50_000,
+      feeMinor: 5_000,
       currencyCode: 'USD',
       status: 'PENDING',
     });

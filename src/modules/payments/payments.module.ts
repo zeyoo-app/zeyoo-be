@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CampaignsModule } from '@modules/campaigns/campaigns.public';
 import { CreatorsModule } from '@modules/creators/creators.public';
+import { EntitlementsModule } from '@modules/entitlements/entitlements.public';
 import { FraudModule } from '@modules/fraud/fraud.public';
 import { IamModule } from '@modules/iam/iam.public';
 import { NotificationsModule } from '@modules/notifications/notifications.public';
@@ -29,6 +30,7 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
 @Module({
   imports: [
     CampaignsModule,
+    EntitlementsModule,
     CreatorsModule,
     FraudModule,
     IamModule,

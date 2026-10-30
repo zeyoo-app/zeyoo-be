@@ -16,6 +16,13 @@ model Plan {
   priceMinor    Int
   currencyCode  String
   stripePriceId String?
+  // The same monthly price in Saudi Riyals (Stripe bills it as a currency option).
+  priceMinorSar Int?
+  // Campaigns that may be live at once; null = unlimited.
+  maxActiveCampaigns     Int?
+  // Fee charged on top of each campaign budget, in basis points (1000 = 10%).
+  platformFeeBps         Int     @default(1000)
+  allowsPrivateCampaigns Boolean @default(false)
   createdAt     DateTime @default(now())
 
   @@map("billing_plans")
