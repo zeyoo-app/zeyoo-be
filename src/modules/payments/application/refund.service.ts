@@ -9,6 +9,7 @@ import { CampaignService } from '@modules/campaigns/campaigns.public';
 import { NotificationService } from '@modules/notifications/notifications.public';
 import { Money } from '../domain/money';
 import { PAYMENT_GATEWAY, PaymentGatewayPort } from '../domain/ports/payment-gateway.port';
+import { WALLET_CURRENCY } from '../domain/wallet';
 import { LedgerService } from './ledger.service';
 
 const MINOR_UNITS_PER_MAJOR = 100;
@@ -20,8 +21,9 @@ export interface RefundOutcome {
 }
 
 /**
- * Returns a campaign's unspent budget to the brand's card. The amount is what was paid
- * in, less what creators have been credited and what has already been refunded.
+ * Returns a closed campaign's unspent budget to the brand: into their wallet for USD
+ * campaigns (the wallet's currency), otherwise to the card that paid. The amount is what
+ * was paid in, less what creators have been credited and what has already gone back.
  */
 @Injectable()
 export class RefundService {
@@ -60,6 +62,7 @@ export class RefundService {
       where: { campaignId, status: 'SUCCEEDED' },
       orderBy: { createdAt: 'desc' },
     });
+    const toWallet = campaign.currencyCode === WALLET_CURRENCY;
     let refunded = 0;
     let count = 0;
     for (const funding of fundings) {
@@ -67,17 +70,24 @@ export class RefundService {
       const available = await this.refundableOn(funding);
       const amount = Math.min(available, remaining);
       if (amount <= 0) continue;
-      await this.refundFunding(funding, amount, adminUserId);
+      if (toWallet) {
+        await this.returnToWallet(funding, amount, adminUserId);
+      } else {
+        await this.refundFunding(funding, amount, adminUserId);
+      }
       remaining -= amount;
       refunded += amount;
       count += 1;
     }
+    const amountText = `${(refunded / MINOR_UNITS_PER_MAJOR).toFixed(2)} ${campaign.currencyCode}`;
     await this.notifications.notify({
       userId: campaign.createdByUserId,
       type: 'CAMPAIGN_REFUNDED',
-      title: 'Unspent budget refunded',
-      body: `${(refunded / MINOR_UNITS_PER_MAJOR).toFixed(2)} ${campaign.currencyCode} from "${campaign.title}" is on its way back to your card.`,
-      link: AppPaths.brandCampaign(campaign.id),
+      title: toWallet ? 'Unspent budget back in your wallet' : 'Unspent budget refunded',
+      body: toWallet
+        ? `${amountText} from "${campaign.title}" is back in your Zeyoo wallet, ready for your next campaign.`
+        : `${amountText} from "${campaign.title}" is on its way back to your card.`,
+      link: toWallet ? AppPaths.brandWallet : AppPaths.brandCampaign(campaign.id),
     });
     return { refundedMinor: refunded, currencyCode: campaign.currencyCode, refunds: count };
   }
@@ -126,6 +136,31 @@ export class RefundService {
       });
       throw error;
     }
+  }
+
+  /** Moves unspent budget back into the wallet; recorded as a refund so it is not repaid twice. */
+  private async returnToWallet(
+    funding: CampaignFunding,
+    amountMinor: number,
+    adminUserId: string,
+  ): Promise<CampaignRefund> {
+    const refund = await this.prisma.campaignRefund.create({
+      data: {
+        campaignId: funding.campaignId,
+        organizationId: funding.organizationId,
+        fundingId: funding.id,
+        amount: amountMinor,
+        currencyCode: funding.currencyCode,
+        status: 'SUCCEEDED',
+        createdByUserId: adminUserId,
+      },
+    });
+    await this.ledger.recordReturnToWallet(
+      funding.organizationId,
+      Money.of(amountMinor, funding.currencyCode),
+      refund.id,
+    );
+    return refund;
   }
 
   private async refundableOn(funding: CampaignFunding): Promise<number> {

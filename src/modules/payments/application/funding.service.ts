@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@platform/database/prisma.service';
@@ -9,6 +9,8 @@ import { EntitlementsService } from '@modules/entitlements/entitlements.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { Money } from '../domain/money';
 import { PAYMENT_GATEWAY, PaymentGatewayPort } from '../domain/ports/payment-gateway.port';
+import { WALLET_CURRENCY } from '../domain/wallet';
+import { KeyedLock } from './keyed-lock';
 import { LedgerService } from './ledger.service';
 
 export interface FundingStatus {
@@ -27,6 +29,8 @@ export interface FundingCreated extends FundingStatus {
 
 @Injectable()
 export class FundingService {
+  private readonly walletLock = new KeyedLock();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly campaigns: CampaignService,
@@ -87,6 +91,65 @@ export class FundingService {
       currencyCode: campaign.currencyCode,
       status: bypassStripe ? 'SUCCEEDED' : 'PENDING',
     };
+  }
+
+  /**
+   * Pays a campaign's budget (plus the plan fee) from the brand's wallet instead of a
+   * card. Settles at once: the funding is recorded as succeeded, so the campaign can be
+   * published straight away.
+   */
+  async fundFromWallet(
+    campaignId: string,
+    requesterId: string,
+    amountMinor: number,
+  ): Promise<FundingCreated> {
+    if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+      throw new BadRequestException('Funding amount must be a positive integer.');
+    }
+    const campaign = await this.campaigns.requireCampaign(campaignId);
+    await this.organizations.assertMember(campaign.organizationId, requesterId);
+    if (campaign.currencyCode !== WALLET_CURRENCY) {
+      throw new ConflictException(
+        `Your wallet holds ${WALLET_CURRENCY}; pay for this ${campaign.currencyCode} campaign by card.`,
+      );
+    }
+    const plan = await this.entitlements.forOrganization(campaign.organizationId);
+    const feeMinor = EntitlementsService.feeMinor(amountMinor, plan.platformFeeBps);
+
+    return this.walletLock.run(campaign.organizationId, async () => {
+      const balance = await this.ledger.walletBalanceMinor(campaign.organizationId, WALLET_CURRENCY);
+      if (balance < amountMinor + feeMinor) {
+        throw new ConflictException(
+          'Your wallet balance does not cover this budget and the platform fee. Add funds or pay by card.',
+        );
+      }
+      const funding = await this.prisma.campaignFunding.create({
+        data: {
+          campaignId,
+          organizationId: campaign.organizationId,
+          amount: amountMinor,
+          feeAmount: feeMinor,
+          currencyCode: WALLET_CURRENCY,
+          status: 'SUCCEEDED',
+          stripePaymentIntentId: `wallet_${randomUUID()}`,
+        },
+        select: { id: true },
+      });
+      await this.ledger.recordWalletFunding(
+        campaign.organizationId,
+        Money.of(amountMinor, WALLET_CURRENCY),
+        Money.of(feeMinor, WALLET_CURRENCY),
+        funding.id,
+      );
+      return {
+        fundingId: funding.id,
+        checkoutUrl: null,
+        amountMinor,
+        feeMinor,
+        currencyCode: WALLET_CURRENCY,
+        status: 'SUCCEEDED' as const,
+      };
+    });
   }
 
   async latestForCampaign(campaignId: string, requesterId: string): Promise<FundingStatus | null> {

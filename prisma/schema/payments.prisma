@@ -3,9 +3,14 @@
 // account or escrow), campaign funding, and creator withdrawals.
 
 enum LedgerAccountOwnerType {
+  // A brand's money committed to campaigns: credited when a campaign is funded,
+  // debited as creators earn.
   ORGANIZATION
   CREATOR
   PLATFORM
+  // A brand's prepaid balance, not yet committed to any campaign (USD only). It can
+  // only be spent on campaigns; there are no withdrawals.
+  ORGANIZATION_WALLET
 }
 
 enum LedgerEntryDirection {
@@ -18,6 +23,12 @@ enum LedgerTransactionType {
   EARNING_ACCRUAL
   WITHDRAWAL
   CAMPAIGN_REFUND
+  // Card payment into a brand's wallet.
+  WALLET_TOPUP
+  // Wallet balance committed to a campaign (budget) plus the plan fee to the platform.
+  WALLET_FUNDING
+  // A closed campaign's unspent budget moved back into the brand's wallet.
+  WALLET_RETURN
 }
 
 enum FundingStatus {
@@ -164,4 +175,22 @@ model CampaignRefund {
   @@index([campaignId])
   @@index([fundingId])
   @@map("campaign_refunds")
+}
+
+// A card payment into a brand's wallet through Stripe Checkout. The wallet itself is
+// the ORGANIZATION_WALLET ledger account; this row tracks the payment until Stripe
+// confirms it, so the wallet is credited exactly once.
+model WalletTopUp {
+  id               String        @id @default(uuid()) @db.Uuid
+  organizationId   String        @db.Uuid
+  amount           Int // minor units
+  currencyCode     String
+  status           FundingStatus @default(PENDING)
+  stripeCheckoutId String        @unique
+  createdByUserId  String        @db.Uuid
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@map("wallet_top_ups")
 }

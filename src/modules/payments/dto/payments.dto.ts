@@ -28,3 +28,17 @@ export class RequestWithdrawalDto extends createZodDto(requestWithdrawalSchema) 
 export class HoldWithdrawalDto extends createZodDto(holdWithdrawalSchema) {}
 
 export class PayoutConnectDto extends createZodDto(payoutConnectSchema) {}
+
+export const walletTopUpSchema = z.object({
+  amountMinor: z.number().int().positive(),
+  // Which client opened Stripe Checkout: decides where Stripe sends the brand back.
+  client: z.enum(['web', 'app']).default('web'),
+});
+
+export class WalletTopUpDto extends createZodDto(walletTopUpSchema) {}
+
+export const walletFundingSchema = z.object({
+  amountMinor: z.number().int().positive(),
+});
+
+export class WalletFundingDto extends createZodDto(walletFundingSchema) {}

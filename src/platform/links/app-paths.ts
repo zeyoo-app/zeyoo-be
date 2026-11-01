@@ -10,6 +10,7 @@ export const AppPaths = {
   brandCampaign: (campaignId: string): string => `/brand/campaigns/${campaignId}`,
   brandSubscription: '/brand/subscription',
   brandPaymentMethod: '/brand/payment-method',
+  brandWallet: '/brand/wallet',
   creatorCampaign: (campaignId: string): string => `/creator/campaigns/${campaignId}`,
   creatorCampaignSubmissions: (campaignId: string): string =>
     `/creator/campaigns/${campaignId}/submissions`,

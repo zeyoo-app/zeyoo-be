@@ -16,6 +16,8 @@ export interface BrandBillingView {
   monthlySpend: { minorUnits: number; currency: string };
   totalFunded: { minorUnits: number; currency: string };
   paymentMethodLast4?: string;
+  /** Prepaid wallet balance brands can spend on campaigns (USD). */
+  walletBalance: { minorUnits: number; currency: string };
   /** Fee added on top of each campaign budget at checkout, in basis points. */
   platformFeeBps: number;
 }
@@ -92,6 +94,7 @@ export class BillingService {
       plan: planLabel(active),
       monthlySpend: totals.monthlySpend,
       totalFunded: totals.totalFunded,
+      walletBalance: totals.walletBalance,
       paymentMethodLast4: paymentMethod?.last4,
       platformFeeBps: entitlements.platformFeeBps,
     };

@@ -146,3 +146,67 @@ describe('FundingService with Stripe Checkout', () => {
     });
   });
 });
+
+describe('FundingService.fundFromWallet', () => {
+  function build(
+    balance: number,
+    currencyCode = 'USD',
+  ): { service: FundingService; create: jest.Mock; recordWalletFunding: jest.Mock } {
+    const create = jest.fn().mockResolvedValue({ id: 'funding-w' });
+    const recordWalletFunding = jest.fn().mockResolvedValue(undefined);
+    const service = new FundingService(
+      { campaignFunding: { create } } as never,
+      {
+        requireCampaign: jest
+          .fn()
+          .mockResolvedValue({ id: 'campaign-1', organizationId: 'org-1', currencyCode }),
+      } as never,
+      { assertMember: jest.fn().mockResolvedValue(undefined) } as never,
+      {
+        walletBalanceMinor: jest.fn().mockResolvedValue(balance),
+        recordWalletFunding,
+      } as never,
+      { forOrganization: jest.fn().mockResolvedValue({ platformFeeBps: 1000 }) } as never,
+      { get: jest.fn() } as never,
+      {} as never,
+    );
+    return { service, create, recordWalletFunding };
+  }
+
+  it('pays budget plus fee from the wallet and records a settled funding', async () => {
+    const { service, create, recordWalletFunding } = build(60_000);
+
+    const result = await service.fundFromWallet('campaign-1', 'user-1', 50_000);
+
+    expect(result).toMatchObject({ status: 'SUCCEEDED', amountMinor: 50_000, feeMinor: 5_000, checkoutUrl: null });
+    expect(create.mock.calls[0][0].data).toMatchObject({
+      amount: 50_000,
+      feeAmount: 5_000,
+      status: 'SUCCEEDED',
+      stripePaymentIntentId: expect.stringMatching(/^wallet_/),
+    });
+    expect(recordWalletFunding).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ amountMinor: 50_000 }),
+      expect.objectContaining({ amountMinor: 5_000 }),
+      'funding-w',
+    );
+  });
+
+  it('refuses when the balance does not cover the budget and the fee', async () => {
+    const { service, create, recordWalletFunding } = build(54_999);
+
+    await expect(service.fundFromWallet('campaign-1', 'user-1', 50_000)).rejects.toThrow(
+      'does not cover',
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(recordWalletFunding).not.toHaveBeenCalled();
+  });
+
+  it('refuses a campaign in another currency than the wallet', async () => {
+    const { service } = build(1_000_000, 'SAR');
+
+    await expect(service.fundFromWallet('campaign-1', 'user-1', 50_000)).rejects.toThrow('by card');
+  });
+});
+

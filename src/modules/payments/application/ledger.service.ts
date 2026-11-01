@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { LedgerAccountOwnerType } from '@prisma/client';
-import { PLATFORM_FUNDING_SOURCE, PLATFORM_PAYOUT_SOURCE } from '../domain/ledger-accounts';
+import {
+  PLATFORM_FEE_REVENUE,
+  PLATFORM_FUNDING_SOURCE,
+  PLATFORM_PAYOUT_SOURCE,
+} from '../domain/ledger-accounts';
 import {
   LedgerTransaction,
   LedgerTransactionType,
@@ -30,6 +34,49 @@ export class LedgerService {
       { spec: this.orgAccount(organizationId, amount.currencyCode), direction: 'DEBIT', amount },
       { spec: this.platformFundingSource(amount.currencyCode), direction: 'CREDIT', amount },
     ]);
+  }
+
+  /** A card payment into the brand's wallet. */
+  async recordTopUp(organizationId: string, amount: Money, reference: string): Promise<void> {
+    await this.postBalanced('WALLET_TOPUP', reference, [
+      { spec: this.walletAccount(organizationId, amount.currencyCode), direction: 'CREDIT', amount },
+      { spec: this.platformFundingSource(amount.currencyCode), direction: 'DEBIT', amount },
+    ]);
+  }
+
+  /**
+   * Pays a campaign from the wallet: the budget becomes the brand's committed campaign
+   * money (as a card funding would), and the plan fee goes to the platform.
+   */
+  async recordWalletFunding(
+    organizationId: string,
+    budget: Money,
+    fee: Money,
+    reference: string,
+  ): Promise<void> {
+    const total = Money.of(budget.amountMinor + fee.amountMinor, budget.currencyCode);
+    await this.postBalanced('WALLET_FUNDING', reference, [
+      { spec: this.walletAccount(organizationId, budget.currencyCode), direction: 'DEBIT', amount: total },
+      { spec: this.orgAccount(organizationId, budget.currencyCode), direction: 'CREDIT', amount: budget },
+      ...(fee.amountMinor > 0
+        ? [{ spec: this.platformFeeRevenue(fee.currencyCode), direction: 'CREDIT' as const, amount: fee }]
+        : []),
+    ]);
+  }
+
+  /** A closed campaign's unspent budget goes back into the brand's wallet. */
+  async recordReturnToWallet(organizationId: string, amount: Money, reference: string): Promise<void> {
+    await this.postBalanced('WALLET_RETURN', reference, [
+      { spec: this.orgAccount(organizationId, amount.currencyCode), direction: 'DEBIT', amount },
+      { spec: this.walletAccount(organizationId, amount.currencyCode), direction: 'CREDIT', amount },
+    ]);
+  }
+
+  async walletBalanceMinor(organizationId: string, currencyCode: string): Promise<number> {
+    const accountId = await this.ledger.resolveAccountId(
+      this.walletAccount(organizationId, currencyCode),
+    );
+    return this.ledger.balanceMinor(accountId);
   }
 
   async recordEarning(
@@ -81,6 +128,10 @@ export class LedgerService {
     return this.ownerAccount('ORGANIZATION', organizationId, currencyCode);
   }
 
+  private walletAccount(organizationId: string, currencyCode: string): AccountSpec {
+    return this.ownerAccount('ORGANIZATION_WALLET', organizationId, currencyCode);
+  }
+
   private creatorAccount(creatorUserId: string, currencyCode: string): AccountSpec {
     return this.ownerAccount('CREATOR', creatorUserId, currencyCode);
   }
@@ -98,6 +149,15 @@ export class LedgerService {
       ownerType: 'PLATFORM',
       ownerId: null,
       systemKey: PLATFORM_FUNDING_SOURCE,
+      currencyCode,
+    };
+  }
+
+  private platformFeeRevenue(currencyCode: string): AccountSpec {
+    return {
+      ownerType: 'PLATFORM',
+      ownerId: null,
+      systemKey: PLATFORM_FEE_REVENUE,
       currencyCode,
     };
   }

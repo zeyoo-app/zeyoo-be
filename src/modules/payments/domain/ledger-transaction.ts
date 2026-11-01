@@ -3,7 +3,13 @@ import { Money } from './money';
 export type EntryDirection = 'DEBIT' | 'CREDIT';
 
 export type LedgerTransactionType =
-  'CAMPAIGN_FUNDING' | 'EARNING_ACCRUAL' | 'WITHDRAWAL' | 'CAMPAIGN_REFUND';
+  | 'CAMPAIGN_FUNDING'
+  | 'EARNING_ACCRUAL'
+  | 'WITHDRAWAL'
+  | 'CAMPAIGN_REFUND'
+  | 'WALLET_TOPUP'
+  | 'WALLET_FUNDING'
+  | 'WALLET_RETURN';
 
 export interface PostingLine {
   accountId: string;
