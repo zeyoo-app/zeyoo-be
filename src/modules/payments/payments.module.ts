@@ -8,6 +8,7 @@ import { NotificationsModule } from '@modules/notifications/notifications.public
 import { SocialModule } from '@modules/social/social.public';
 import { SubmissionsModule } from '@modules/submissions/submissions.public';
 import { EarningsSettlementService } from './application/earnings-settlement.service';
+import { CampaignCloseHandler } from './application/campaign-close.handler';
 import { RefundService } from './application/refund.service';
 import { TopUpService } from './application/top-up.service';
 import { ViewSyncScheduler } from './application/view-sync.scheduler';
@@ -56,6 +57,7 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
     EarningsSettlementService,
     RefundService,
     TopUpService,
+    CampaignCloseHandler,
     ViewTrackingService,
     ViewSyncScheduler,
     WithdrawalService,

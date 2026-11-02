@@ -145,8 +145,11 @@ export class AdminController {
 
   @HttpCode(HttpStatus.OK)
   @Post('campaigns/:campaignId/close')
-  closeCampaign(@Param('campaignId', ParseUUIDPipe) campaignId: string): Promise<Campaign> {
-    return this.campaigns.closeAsAdmin(campaignId);
+  closeCampaign(
+    @CurrentUser() principal: Principal,
+    @Param('campaignId', ParseUUIDPipe) campaignId: string,
+  ): Promise<Campaign> {
+    return this.campaigns.closeAsAdmin(campaignId, principal.userId);
   }
 
   @HttpCode(HttpStatus.OK)
