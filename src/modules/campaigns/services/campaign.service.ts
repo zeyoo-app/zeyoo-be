@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Campaign } from '@prisma/client';
@@ -27,8 +28,14 @@ const LIVE_EDITABLE = new Set([
   'endDate',
 ]);
 
+/** Runs after a campaign closes; `closedByUserId` is the brand member or staff who closed it. */
+export type CampaignClosedListener = (campaign: Campaign, closedByUserId: string) => Promise<void>;
+
 @Injectable()
 export class CampaignService {
+  private readonly logger = new Logger(CampaignService.name);
+  private readonly closedListeners: CampaignClosedListener[] = [];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly organizations: OrganizationService,
@@ -101,25 +108,41 @@ export class CampaignService {
 
   async close(campaignId: string, requesterId: string): Promise<Campaign> {
     const campaign = await this.loadManageable(campaignId, requesterId);
-    if (campaign.status !== 'PUBLISHED') {
-      throw new ConflictException('Only a published campaign can be closed.');
-    }
-    return this.prisma.campaign.update({
-      where: { id: campaign.id },
-      data: { status: 'CLOSED', closedAt: new Date() },
-    });
+    return this.closePublished(campaign, requesterId);
   }
 
   /** Staff override: closes any published campaign regardless of organization. */
-  async closeAsAdmin(campaignId: string): Promise<Campaign> {
+  async closeAsAdmin(campaignId: string, adminUserId: string): Promise<Campaign> {
     const campaign = await this.requireCampaign(campaignId);
+    return this.closePublished(campaign, adminUserId);
+  }
+
+  /**
+   * Lets another module act when a campaign closes (payments returns its unspent
+   * budget). A registration hook rather than a dependency, because payments already
+   * depends on campaigns.
+   */
+  onClosed(listener: CampaignClosedListener): void {
+    this.closedListeners.push(listener);
+  }
+
+  private async closePublished(campaign: Campaign, closedByUserId: string): Promise<Campaign> {
     if (campaign.status !== 'PUBLISHED') {
       throw new ConflictException('Only a published campaign can be closed.');
     }
-    return this.prisma.campaign.update({
+    const closed = await this.prisma.campaign.update({
       where: { id: campaign.id },
       data: { status: 'CLOSED', closedAt: new Date() },
     });
+    // The campaign is closed either way; a follow-up that fails is logged, not surfaced.
+    for (const listener of this.closedListeners) {
+      try {
+        await listener(closed, closedByUserId);
+      } catch (error) {
+        this.logger.error(`After closing campaign ${closed.id}: ${String(error)}`);
+      }
+    }
+    return closed;
   }
 
   // Every public campaign, plus the invite-only ones this creator has been invited to.

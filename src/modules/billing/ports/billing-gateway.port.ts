@@ -22,6 +22,12 @@ export type BillingEvent =
 
 export interface BillingGatewayPort {
   createSubscriptionCheckout(input: SubscriptionCheckoutInput): Promise<{ url: string }>;
+  /** Moves a live subscription to another price; Stripe prorates the difference. */
+  changeSubscriptionPrice(stripeSubscriptionId: string, priceId: string): Promise<void>;
+  /** Ends the subscription when the paid period runs out; returns that date. */
+  cancelAtPeriodEnd(stripeSubscriptionId: string): Promise<Date>;
+  /** Undoes a scheduled cancellation, so the subscription renews as before. */
+  resume(stripeSubscriptionId: string): Promise<void>;
   /** Hosted page where the brand enters a card; the card never reaches our servers. */
   createCardSetupCheckout(input: CardSetupCheckoutInput): Promise<{ url: string }>;
   /** Display details of the card saved by a completed setup. */

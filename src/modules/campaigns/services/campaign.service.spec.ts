@@ -236,3 +236,26 @@ describe('CampaignService.update on a live campaign', () => {
     );
   });
 });
+
+describe('CampaignService close hook', () => {
+  it('tells listeners who closed the campaign, after it is closed', async () => {
+    const { service } = setup(buildCampaign({ status: 'PUBLISHED' }));
+    const listener = jest.fn().mockResolvedValue(undefined);
+    service.onClosed(listener);
+
+    const closed = await service.close('campaign-1', 'user-1');
+
+    expect(closed.status).toBe('CLOSED');
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ status: 'CLOSED' }), 'user-1');
+  });
+
+  it('still closes the campaign when a listener fails', async () => {
+    const { service } = setup(buildCampaign({ status: 'PUBLISHED' }));
+    service.onClosed(jest.fn().mockRejectedValue(new Error('wallet down')));
+
+    await expect(service.closeAsAdmin('campaign-1', 'admin-1')).resolves.toMatchObject({
+      status: 'CLOSED',
+    });
+  });
+});
+

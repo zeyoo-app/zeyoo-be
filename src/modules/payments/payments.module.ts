@@ -8,7 +8,9 @@ import { NotificationsModule } from '@modules/notifications/notifications.public
 import { SocialModule } from '@modules/social/social.public';
 import { SubmissionsModule } from '@modules/submissions/submissions.public';
 import { EarningsSettlementService } from './application/earnings-settlement.service';
+import { CampaignCloseHandler } from './application/campaign-close.handler';
 import { RefundService } from './application/refund.service';
+import { TopUpService } from './application/top-up.service';
 import { ViewSyncScheduler } from './application/view-sync.scheduler';
 import { ViewTrackingService } from './application/view-tracking.service';
 import { EarningsController } from './controllers/earnings.controller';
@@ -19,6 +21,7 @@ import { WalletService } from './application/wallet.service';
 import { WithdrawalService } from './application/withdrawal.service';
 import { AdminPayoutsController } from './controllers/admin-payouts.controller';
 import { FundingController } from './controllers/funding.controller';
+import { WalletTopUpsController } from './controllers/wallet-top-ups.controller';
 import { StripeWebhookController } from './controllers/stripe-webhook.controller';
 import { WalletController } from './controllers/wallet.controller';
 import { WithdrawalsController } from './controllers/withdrawals.controller';
@@ -44,6 +47,7 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
     ViewTrackingController,
     WithdrawalsController,
     WalletController,
+    WalletTopUpsController,
     AdminPayoutsController,
     StripeWebhookController,
   ],
@@ -52,6 +56,8 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
     FundingService,
     EarningsSettlementService,
     RefundService,
+    TopUpService,
+    CampaignCloseHandler,
     ViewTrackingService,
     ViewSyncScheduler,
     WithdrawalService,

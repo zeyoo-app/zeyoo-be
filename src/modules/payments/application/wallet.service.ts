@@ -7,6 +7,7 @@ import { PrismaService } from '@platform/database/prisma.service';
 import { CreatorProfileService } from '@modules/creators/creators.public';
 import { OrganizationService, UserService } from '@modules/iam/iam.public';
 import { PAYMENT_GATEWAY, PaymentGatewayPort } from '../domain/ports/payment-gateway.port';
+import { WALLET_CURRENCY } from '../domain/wallet';
 
 const DEFAULT_CURRENCY = 'USD';
 const DEFAULT_PAYOUT_COUNTRY = 'US';
@@ -40,11 +41,22 @@ export interface CreatorLedgerEntryView {
   status: 'completed' | 'pending' | 'held';
 }
 
+/** What a brand activity line is, for clients that show it in their own language. */
+export type OrganizationEntryCode =
+  | 'wallet_topup'
+  | 'wallet_funding'
+  | 'wallet_return'
+  | 'card_funding'
+  | 'creator_payout'
+  | 'card_refund';
+
 export interface OrganizationLedgerEntryView {
   id: string;
   kind: 'topup' | 'campaign';
+  code: OrganizationEntryCode;
+  /** English wording, for clients that do not translate the code. */
   description: string;
-  /** Signed: positive for a top-up, negative when a campaign pays out. */
+  /** Signed: positive for money coming in, negative for money going out. */
   amount: MoneyView;
   date: string;
 }
@@ -52,6 +64,38 @@ export interface OrganizationLedgerEntryView {
 export interface OrganizationTotals {
   monthlySpend: MoneyView;
   totalFunded: MoneyView;
+  /** Prepaid wallet balance, not yet committed to a campaign (USD). */
+  walletBalance: MoneyView;
+}
+
+/**
+ * How each ledger line reads in a brand's activity. Moves between the wallet and a
+ * campaign post on both accounts; only the wallet side is listed, so it shows once.
+ */
+function describeOrganizationEntry(
+  accountType: string,
+  transactionType: string,
+  credit: boolean,
+): Pick<OrganizationLedgerEntryView, 'kind' | 'code' | 'description'> | null {
+  if (accountType === 'ORGANIZATION_WALLET') {
+    if (transactionType === 'WALLET_TOPUP') {
+      return { kind: 'topup', code: 'wallet_topup', description: 'Wallet top-up' };
+    }
+    if (transactionType === 'WALLET_FUNDING') {
+      return { kind: 'campaign', code: 'wallet_funding', description: 'Campaign paid from wallet' };
+    }
+    if (transactionType === 'WALLET_RETURN') {
+      return { kind: 'topup', code: 'wallet_return', description: 'Unspent budget returned to wallet' };
+    }
+    return null;
+  }
+  if (transactionType === 'WALLET_FUNDING' || transactionType === 'WALLET_RETURN') return null;
+  if (transactionType === 'CAMPAIGN_REFUND') {
+    return { kind: 'campaign', code: 'card_refund', description: 'Unspent budget refunded to card' };
+  }
+  return credit
+    ? { kind: 'topup', code: 'card_funding', description: 'Campaign funding' }
+    : { kind: 'campaign', code: 'creator_payout', description: 'Creator payout' };
 }
 
 /** Read models over the ledger for the wallet screens, plus creator payout onboarding. */
@@ -139,25 +183,28 @@ export class WalletService {
   ): Promise<OrganizationLedgerEntryView[]> {
     await this.organizations.assertMember(organizationId, requesterId);
     const entries = await this.prisma.ledgerEntry.findMany({
-      where: { account: { ownerType: 'ORGANIZATION', ownerId: organizationId } },
+      where: {
+        account: { ownerType: { in: ['ORGANIZATION', 'ORGANIZATION_WALLET'] }, ownerId: organizationId },
+      },
       orderBy: { createdAt: 'desc' },
       take: 200,
-      include: { transaction: { select: { type: true } } },
+      include: {
+        transaction: { select: { type: true } },
+        account: { select: { ownerType: true } },
+      },
     });
-    return entries.map((entry) => {
+    return entries.flatMap((entry) => {
       const credit = entry.direction === 'CREDIT';
-      const refund = entry.transaction.type === 'CAMPAIGN_REFUND';
-      return {
-        id: entry.id,
-        kind: credit ? 'topup' : 'campaign',
-        description: refund
-          ? 'Unspent budget refunded'
-          : credit
-            ? 'Campaign funding'
-            : 'Creator payout',
-        amount: money(credit ? entry.amount : -entry.amount, entry.currencyCode),
-        date: entry.createdAt.toISOString(),
-      };
+      const reading = describeOrganizationEntry(entry.account.ownerType, entry.transaction.type, credit);
+      if (!reading) return [];
+      return [
+        {
+          id: entry.id,
+          ...reading,
+          amount: money(credit ? entry.amount : -entry.amount, entry.currencyCode),
+          date: entry.createdAt.toISOString(),
+        },
+      ];
     });
   }
 
@@ -167,11 +214,16 @@ export class WalletService {
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
 
-    const [funded, spent] = await Promise.all([
+    const [funded, spent, wallet] = await Promise.all([
       this.sumEntries('ORGANIZATION', organizationId, currency, 'CREDIT'),
       this.sumEntries('ORGANIZATION', organizationId, currency, 'DEBIT', monthStart),
+      this.balanceMinor('ORGANIZATION_WALLET', organizationId, WALLET_CURRENCY),
     ]);
-    return { monthlySpend: money(spent, currency), totalFunded: money(funded, currency) };
+    return {
+      monthlySpend: money(spent, currency),
+      totalFunded: money(funded, currency),
+      walletBalance: money(wallet, WALLET_CURRENCY),
+    };
   }
 
   /** Starts (or resumes) Stripe Connect onboarding; returns the hosted URL to send the creator to. */
@@ -222,7 +274,7 @@ export class WalletService {
   }
 
   private async sumEntries(
-    ownerType: 'CREATOR' | 'ORGANIZATION',
+    ownerType: 'CREATOR' | 'ORGANIZATION' | 'ORGANIZATION_WALLET',
     ownerId: string,
     currencyCode: string,
     direction: 'CREDIT' | 'DEBIT',
@@ -239,7 +291,7 @@ export class WalletService {
   }
 
   private async balanceMinor(
-    ownerType: 'CREATOR' | 'ORGANIZATION',
+    ownerType: 'CREATOR' | 'ORGANIZATION' | 'ORGANIZATION_WALLET',
     ownerId: string,
     currencyCode: string,
   ): Promise<number> {
