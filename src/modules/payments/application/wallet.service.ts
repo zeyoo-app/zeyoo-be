@@ -41,9 +41,20 @@ export interface CreatorLedgerEntryView {
   status: 'completed' | 'pending' | 'held';
 }
 
+/** What a brand activity line is, for clients that show it in their own language. */
+export type OrganizationEntryCode =
+  | 'wallet_topup'
+  | 'wallet_funding'
+  | 'wallet_return'
+  | 'card_funding'
+  | 'creator_payout'
+  | 'card_refund';
+
 export interface OrganizationLedgerEntryView {
   id: string;
   kind: 'topup' | 'campaign';
+  code: OrganizationEntryCode;
+  /** English wording, for clients that do not translate the code. */
   description: string;
   /** Signed: positive for money coming in, negative for money going out. */
   amount: MoneyView;
@@ -65,24 +76,26 @@ function describeOrganizationEntry(
   accountType: string,
   transactionType: string,
   credit: boolean,
-): { kind: OrganizationLedgerEntryView['kind']; description: string } | null {
+): Pick<OrganizationLedgerEntryView, 'kind' | 'code' | 'description'> | null {
   if (accountType === 'ORGANIZATION_WALLET') {
-    if (transactionType === 'WALLET_TOPUP') return { kind: 'topup', description: 'Wallet top-up' };
+    if (transactionType === 'WALLET_TOPUP') {
+      return { kind: 'topup', code: 'wallet_topup', description: 'Wallet top-up' };
+    }
     if (transactionType === 'WALLET_FUNDING') {
-      return { kind: 'campaign', description: 'Campaign paid from wallet' };
+      return { kind: 'campaign', code: 'wallet_funding', description: 'Campaign paid from wallet' };
     }
     if (transactionType === 'WALLET_RETURN') {
-      return { kind: 'topup', description: 'Unspent budget returned to wallet' };
+      return { kind: 'topup', code: 'wallet_return', description: 'Unspent budget returned to wallet' };
     }
     return null;
   }
   if (transactionType === 'WALLET_FUNDING' || transactionType === 'WALLET_RETURN') return null;
   if (transactionType === 'CAMPAIGN_REFUND') {
-    return { kind: 'campaign', description: 'Unspent budget refunded to card' };
+    return { kind: 'campaign', code: 'card_refund', description: 'Unspent budget refunded to card' };
   }
   return credit
-    ? { kind: 'topup', description: 'Campaign funding' }
-    : { kind: 'campaign', description: 'Creator payout' };
+    ? { kind: 'topup', code: 'card_funding', description: 'Campaign funding' }
+    : { kind: 'campaign', code: 'creator_payout', description: 'Creator payout' };
 }
 
 /** Read models over the ledger for the wallet screens, plus creator payout onboarding. */
