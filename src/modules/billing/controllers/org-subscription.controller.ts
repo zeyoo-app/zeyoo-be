@@ -55,7 +55,29 @@ export class OrgSubscriptionController {
     @CurrentUser() principal: Principal,
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @Body() dto: SubscribeDto,
-  ): Promise<{ url: string }> {
+  ): Promise<{ url: string | null; changed?: boolean }> {
     return this.billing.startCheckout(organizationId, principal.userId, dto.planKey, dto.client);
+  }
+
+  // Ends the paid plan at the end of the period already paid for (back to Starter).
+  @RequirePermission(Permission.OrgManage)
+  @HttpCode(HttpStatus.OK)
+  @Post('subscription/cancel')
+  cancel(
+    @CurrentUser() principal: Principal,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+  ): Promise<{ planEndsAt: string }> {
+    return this.billing.cancel(organizationId, principal.userId);
+  }
+
+  // Keeps a plan that was set to end.
+  @RequirePermission(Permission.OrgManage)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('subscription/resume')
+  resume(
+    @CurrentUser() principal: Principal,
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+  ): Promise<void> {
+    return this.billing.resume(organizationId, principal.userId);
   }
 }

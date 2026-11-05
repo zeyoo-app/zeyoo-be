@@ -34,6 +34,9 @@ model Subscription {
   planKey              String
   status               SubscriptionStatus @default(INCOMPLETE)
   stripeSubscriptionId String?            @unique
+  // Set when the brand cancels: the plan stays active until then, then Stripe ends it
+  // and the brand is back on Starter. Cleared if they keep the plan.
+  cancelAt             DateTime?
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 

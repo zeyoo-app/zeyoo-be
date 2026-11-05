@@ -35,6 +35,34 @@ export class StripeBillingGateway implements BillingGatewayPort {
     return { url: session.url };
   }
 
+  async changeSubscriptionPrice(stripeSubscriptionId: string, priceId: string): Promise<void> {
+    const subscription = await this.stripe.subscriptions.retrieve(stripeSubscriptionId);
+    const item = subscription.items.data[0];
+    if (!item) {
+      throw new Error('Subscription has no item to change.');
+    }
+    await this.stripe.subscriptions.update(stripeSubscriptionId, {
+      items: [{ id: item.id, price: priceId }],
+      proration_behavior: 'create_prorations',
+      cancel_at_period_end: false,
+    });
+  }
+
+  async cancelAtPeriodEnd(stripeSubscriptionId: string): Promise<Date> {
+    const subscription = await this.stripe.subscriptions.update(stripeSubscriptionId, {
+      cancel_at_period_end: true,
+    });
+    const endsAt = subscription.cancel_at ?? subscription.current_period_end;
+    if (!endsAt) {
+      throw new Error('Stripe did not report when the subscription ends.');
+    }
+    return new Date(endsAt * 1000);
+  }
+
+  async resume(stripeSubscriptionId: string): Promise<void> {
+    await this.stripe.subscriptions.update(stripeSubscriptionId, { cancel_at_period_end: false });
+  }
+
   async createCardSetupCheckout(input: CardSetupCheckoutInput): Promise<{ url: string }> {
     const session = await this.stripe.checkout.sessions.create({
       mode: 'setup',
