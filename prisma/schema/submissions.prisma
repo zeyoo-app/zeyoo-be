@@ -50,9 +50,27 @@ model SubmissionRevision {
 
   submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   reviews    Review[]
+  // The published posts this version points at: at most one per campaign platform.
+  // A LINK revision has at least one; an UPLOAD revision has none.
+  posts      SubmissionPost[]
 
   @@index([submissionId])
   @@map("submission_revisions")
+}
+
+// One published post in a revision, on one of the campaign's platforms. Views are
+// tracked per post, and a creator's earnings count every platform they posted on.
+model SubmissionPost {
+  id         String         @id @default(uuid()) @db.Uuid
+  revisionId String         @db.Uuid
+  platform   SocialPlatform
+  url        String
+  createdAt  DateTime       @default(now())
+
+  revision SubmissionRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, platform])
+  @@map("submission_posts")
 }
 
 model Review {

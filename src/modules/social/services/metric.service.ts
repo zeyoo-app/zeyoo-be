@@ -127,6 +127,19 @@ export class MetricService {
     return viewsByCampaign;
   }
 
+  /** One creator's most recent reading on each platform they posted on for a campaign. */
+  async latestByPlatformForCreator(
+    campaignId: string,
+    creatorUserId: string,
+  ): Promise<Map<SocialPlatform, MetricSnapshot>> {
+    const latestPerPlatform = await this.prisma.metricSnapshot.findMany({
+      where: { campaignId, creatorUserId },
+      orderBy: { capturedAt: 'desc' },
+      distinct: ['platform'],
+    });
+    return new Map(latestPerPlatform.map((snapshot) => [snapshot.platform, snapshot]));
+  }
+
   async totalViewsForCampaign(campaignId: string): Promise<number> {
     const viewsByCreator = await this.latestViewsByCreator(campaignId);
     return [...viewsByCreator.values()].reduce((total, views) => total + views, 0);

@@ -1,8 +1,21 @@
-import { Body, Controller, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
-import { TrackingResult, ViewTrackingService } from '../application/view-tracking.service';
+import {
+  SubmissionViews,
+  TrackingResult,
+  ViewTrackingService,
+} from '../application/view-tracking.service';
 import { ManualViewsDto } from '../dto/view-tracking.dto';
 
 @ApiTags('view-tracking')
@@ -11,6 +24,14 @@ import { ManualViewsDto } from '../dto/view-tracking.dto';
 @Controller()
 export class ViewTrackingController {
   constructor(private readonly tracking: ViewTrackingService) {}
+
+  @Get('submissions/:submissionId/views')
+  getSubmissionViews(
+    @CurrentUser() principal: Principal,
+    @Param('submissionId', ParseUUIDPipe) submissionId: string,
+  ): Promise<SubmissionViews> {
+    return this.tracking.getSubmissionViews(submissionId, principal.userId);
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('submissions/:submissionId/views')
