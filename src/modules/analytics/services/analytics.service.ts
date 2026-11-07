@@ -30,6 +30,24 @@ export interface CampaignReport {
   }[];
 }
 
+/** Views and spend for each of a brand's campaigns, with totals per currency. */
+export interface OrganizationPerformance {
+  totalViews: number;
+  /** Paid to creators across all campaigns, one entry per currency in use. */
+  paid: { currencyCode: string; amountMinor: number }[];
+  campaigns: CampaignPerformance[];
+}
+
+export interface CampaignPerformance {
+  campaignId: string;
+  title: string;
+  status: string;
+  currencyCode: string;
+  budgetMinor: number;
+  views: number;
+  spentMinor: number;
+}
+
 const TOP_CREATOR_LIMIT = 5;
 const VIEWS_PER_THOUSAND = 1_000;
 
@@ -83,6 +101,51 @@ export class AnalyticsService {
         accruedMinor: creator.accruedMinor,
         paused: creator.paused,
       })),
+    };
+  }
+
+  /**
+   * How every campaign the brand has launched is doing: verified views and what has been
+   * paid to creators, plus the totals the dashboard shows. Drafts have neither, so they
+   * are left out.
+   */
+  async organizationPerformance(
+    organizationId: string,
+    requesterId: string,
+  ): Promise<OrganizationPerformance> {
+    const all = await this.campaigns.listForOrganization(organizationId, requesterId);
+    const launched = all.filter((campaign) => campaign.status !== 'DRAFT');
+    const campaigns = await Promise.all(
+      launched.map(async (campaign): Promise<CampaignPerformance> => {
+        const [views, earnings] = await Promise.all([
+          this.metrics.totalViewsForCampaign(campaign.id),
+          this.earnings.getCampaignEarnings(campaign.id, requesterId),
+        ]);
+        return {
+          campaignId: campaign.id,
+          title: campaign.title,
+          status: campaign.status,
+          currencyCode: campaign.currencyCode,
+          budgetMinor: campaign.budgetAmount,
+          views,
+          spentMinor: earnings.spentMinor,
+        };
+      }),
+    );
+    const paidByCurrency = new Map<string, number>();
+    for (const campaign of campaigns) {
+      paidByCurrency.set(
+        campaign.currencyCode,
+        (paidByCurrency.get(campaign.currencyCode) ?? 0) + campaign.spentMinor,
+      );
+    }
+    return {
+      totalViews: campaigns.reduce((total, campaign) => total + campaign.views, 0),
+      paid: [...paidByCurrency].map(([currencyCode, amountMinor]) => ({
+        currencyCode,
+        amountMinor,
+      })),
+      campaigns,
     };
   }
 

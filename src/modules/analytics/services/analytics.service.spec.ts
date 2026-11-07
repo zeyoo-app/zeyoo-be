@@ -64,3 +64,48 @@ describe('AnalyticsService.campaignReportCsv', () => {
     ]);
   });
 });
+
+describe('AnalyticsService.organizationPerformance', () => {
+  function buildForOrganization(): AnalyticsService {
+    const campaigns = [
+      { id: 'live', title: 'Live', status: 'PUBLISHED', currencyCode: 'USD', budgetAmount: 50_000 },
+      { id: 'done', title: 'Done', status: 'CLOSED', currencyCode: 'USD', budgetAmount: 20_000 },
+      { id: 'sar', title: 'Riyadh', status: 'PUBLISHED', currencyCode: 'SAR', budgetAmount: 9_000 },
+      { id: 'draft', title: 'Draft', status: 'DRAFT', currencyCode: 'USD', budgetAmount: 1_000 },
+    ];
+    const views: Record<string, number> = { live: 4_000, done: 6_000, sar: 1_000 };
+    const spent: Record<string, number> = { live: 4_000, done: 2_500, sar: 700 };
+    return new AnalyticsService(
+      { listForOrganization: jest.fn().mockResolvedValue(campaigns) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { totalViewsForCampaign: jest.fn((id: string) => Promise.resolve(views[id])) } as never,
+      {
+        getCampaignEarnings: jest.fn((id: string) => Promise.resolve({ spentMinor: spent[id] })),
+      } as never,
+      {} as never,
+    );
+  }
+
+  it('totals views across launched campaigns and leaves drafts out', async () => {
+    const performance = await buildForOrganization().organizationPerformance('org-1', 'brand');
+
+    expect(performance.totalViews).toBe(11_000);
+    expect(performance.campaigns.map((campaign) => campaign.campaignId)).toEqual([
+      'live',
+      'done',
+      'sar',
+    ]);
+  });
+
+  it('keeps payouts in different currencies apart', async () => {
+    const performance = await buildForOrganization().organizationPerformance('org-1', 'brand');
+
+    expect(performance.paid).toEqual([
+      { currencyCode: 'USD', amountMinor: 6_500 },
+      { currencyCode: 'SAR', amountMinor: 700 },
+    ]);
+  });
+});
