@@ -7,6 +7,7 @@ import { PaymentsModule } from '@modules/payments/payments.public';
 import { SocialModule } from '@modules/social/social.public';
 import { SubmissionsModule } from '@modules/submissions/submissions.public';
 import { CampaignReportController } from './controllers/campaign-report.controller';
+import { OrganizationPerformanceController } from './controllers/organization-performance.controller';
 import { AnalyticsService } from './services/analytics.service';
 
 @Module({
@@ -19,7 +20,7 @@ import { AnalyticsService } from './services/analytics.service';
     PaymentsModule,
     SocialModule,
   ],
-  controllers: [CampaignReportController],
+  controllers: [CampaignReportController, OrganizationPerformanceController],
   providers: [AnalyticsService],
 })
 export class AnalyticsModule {}

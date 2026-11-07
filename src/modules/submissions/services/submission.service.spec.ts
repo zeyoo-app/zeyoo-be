@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Submission } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { ApplicationService } from '@modules/applications/applications.public';
@@ -36,9 +36,13 @@ function setup(existingSubmission: Submission | null): {
     submission: { findUnique: mocks.findUnique, create: mocks.create, update: mocks.update },
   } as unknown as PrismaService;
   const campaigns = {
-    requireCampaign: jest
-      .fn()
-      .mockResolvedValue({ id: 'campaign-1', title: 'Summer', organizationId: 'org-1' }),
+    requireCampaign: jest.fn().mockResolvedValue({
+      id: 'campaign-1',
+      title: 'Summer',
+      organizationId: 'org-1',
+      platform: 'TIKTOK',
+      platforms: ['TIKTOK', 'INSTAGRAM'],
+    }),
   } as unknown as CampaignService;
   const organizations = {
     memberUserIds: jest.fn().mockResolvedValue(['brand-owner']),
@@ -158,20 +162,23 @@ describe('SubmissionService.resubmit', () => {
 });
 
 describe('SubmissionService.listForCampaign', () => {
-  const REVIEW_LINK = {
-    contentType: 'LINK',
-    contentUrl: 'https://www.tiktok.com/@creator/video/7234567890123456789',
+  const TIKTOK_POST = {
+    platform: 'TIKTOK',
+    url: 'https://www.tiktok.com/@creator/video/7234567890123456789',
   };
+  const INSTAGRAM_POST = { platform: 'INSTAGRAM', url: 'https://www.instagram.com/reel/Abc123/' };
 
   function buildForListing(
     accounts: { platform: string; handle: string; verified: boolean }[],
+    posts: { platform: string; url: string }[] = [TIKTOK_POST],
   ): SubmissionService {
+    const revision = { contentType: 'LINK', contentUrl: posts[0].url, posts };
     const prisma = {
       submission: {
         findMany: jest
           .fn()
           .mockResolvedValue([
-            { ...buildSubmission({ status: 'APPROVED' }), revisions: [REVIEW_LINK] },
+            { ...buildSubmission({ status: 'APPROVED' }), revisions: [revision] },
           ]),
       },
     };
@@ -227,5 +234,85 @@ describe('SubmissionService.listForCampaign', () => {
     const [submission] = await service.listForCampaign('campaign-1', 'brand-user');
 
     expect(submission.accountVerified).toBe(false);
+  });
+
+  it('marks a multi-platform submission verified only when every post is verified', async () => {
+    const service = buildForListing(
+      [{ platform: 'TIKTOK', handle: 'ada', verified: true }],
+      [TIKTOK_POST, INSTAGRAM_POST],
+    );
+
+    const [submission] = await service.listForCampaign('campaign-1', 'brand-user');
+
+    expect(submission.accountVerified).toBe(false);
+    expect(submission.verifiedPlatforms).toEqual(['TIKTOK']);
+  });
+});
+
+describe('SubmissionService.submit with posts', () => {
+  const tiktok = { platform: 'TIKTOK' as const, url: 'https://www.tiktok.com/@ada/video/123' };
+  const instagram = { platform: 'INSTAGRAM' as const, url: 'https://www.instagram.com/reel/Ab1/' };
+
+  function revisionCreated(mocks: Mocks): {
+    contentUrl: string;
+    posts: { create: { platform: string; url: string }[] };
+  } {
+    return mocks.create.mock.calls[0][0].data.revisions.create;
+  }
+
+  it('stores one post per platform and keeps the first as the content link', async () => {
+    const { service, mocks } = setup(null);
+
+    await service.submit('campaign-1', 'creator-1', {
+      contentType: 'LINK',
+      posts: [tiktok, instagram],
+    });
+
+    const revision = revisionCreated(mocks);
+    expect(revision.posts.create).toEqual([tiktok, instagram]);
+    expect(revision.contentUrl).toBe(tiktok.url);
+  });
+
+  it('files a single legacy link under the platform it belongs to', async () => {
+    const { service, mocks } = setup(null);
+
+    await service.submit('campaign-1', 'creator-1', {
+      contentType: 'LINK',
+      contentUrl: instagram.url,
+    });
+
+    expect(revisionCreated(mocks).posts.create).toEqual([instagram]);
+  });
+
+  it("refuses a platform the campaign doesn't include", async () => {
+    const { service, mocks } = setup(null);
+
+    await expect(
+      service.submit('campaign-1', 'creator-1', {
+        contentType: 'LINK',
+        posts: [{ platform: 'YOUTUBE', url: 'https://www.youtube.com/shorts/dQw4w9WgXcQ' }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a link filed under the wrong platform', async () => {
+    const { service } = setup(null);
+
+    await expect(
+      service.submit('campaign-1', 'creator-1', {
+        contentType: 'LINK',
+        posts: [{ platform: 'TIKTOK', url: instagram.url }],
+      }),
+    ).rejects.toThrow('The TikTok link is a post on Instagram.');
+  });
+
+  it("accepts a short link it can't read, on the creator's word", async () => {
+    const { service, mocks } = setup(null);
+    const shortLink = { platform: 'TIKTOK' as const, url: 'https://vm.tiktok.com/ZMabc/' };
+
+    await service.submit('campaign-1', 'creator-1', { contentType: 'LINK', posts: [shortLink] });
+
+    expect(revisionCreated(mocks).posts.create).toEqual([shortLink]);
   });
 });

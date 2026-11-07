@@ -1,7 +1,10 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { Campaign, CampaignStatus, CampaignVisibility } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
-import { EntitlementsService, type PlanEntitlements } from '@modules/entitlements/entitlements.public';
+import {
+  EntitlementsService,
+  type PlanEntitlements,
+} from '@modules/entitlements/entitlements.public';
 import { OrganizationService } from '@modules/iam/iam.public';
 import { CampaignService } from './campaign.service';
 import { CategoryService } from './category.service';
@@ -11,6 +14,9 @@ interface Mocks {
   isMember: jest.Mock;
   assertMember: jest.Mock;
   findInvitation: jest.Mock;
+  findApplication: jest.Mock;
+  findSubmission: jest.Mock;
+  groupSubmissions: jest.Mock;
   fundedSum: jest.Mock;
   liveCount: jest.Mock;
   plan: jest.Mock;
@@ -64,6 +70,9 @@ function setup(campaign: Campaign): { service: CampaignService; mocks: Mocks } {
     isMember: jest.fn(),
     assertMember: jest.fn().mockResolvedValue(undefined),
     findInvitation: jest.fn().mockResolvedValue(null),
+    findApplication: jest.fn().mockResolvedValue(null),
+    findSubmission: jest.fn().mockResolvedValue(null),
+    groupSubmissions: jest.fn().mockResolvedValue([]),
     fundedSum: jest.fn().mockResolvedValue({ _sum: { amount: campaign.budgetAmount } }),
     liveCount: jest.fn().mockResolvedValue(0),
     plan: jest.fn().mockResolvedValue(STARTER),
@@ -75,6 +84,8 @@ function setup(campaign: Campaign): { service: CampaignService; mocks: Mocks } {
       count: mocks.liveCount,
     },
     campaignInvitation: { findFirst: mocks.findInvitation },
+    application: { findFirst: mocks.findApplication },
+    submission: { findFirst: mocks.findSubmission, groupBy: mocks.groupSubmissions },
     campaignFunding: { aggregate: mocks.fundedSum },
     campaignRefund: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }) },
   } as unknown as PrismaService;
@@ -162,6 +173,30 @@ describe('CampaignService.getById visibility', () => {
     await expect(service.getById('campaign-1', 'member')).resolves.toBeDefined();
   });
 
+  it("tells the brand's team how many submissions there are and how many await review", async () => {
+    const { service, mocks } = setup(buildCampaign());
+    mocks.isMember.mockResolvedValue(true);
+    mocks.groupSubmissions.mockResolvedValue([
+      { campaignId: 'campaign-1', status: 'PENDING', _count: { _all: 2 } },
+      { campaignId: 'campaign-1', status: 'APPROVED', _count: { _all: 3 } },
+    ]);
+
+    await expect(service.getById('campaign-1', 'member')).resolves.toMatchObject({
+      submissionCount: 5,
+      pendingSubmissionCount: 2,
+    });
+  });
+
+  it('does not count submissions for a creator viewing the campaign', async () => {
+    const { service, mocks } = setup(buildCampaign({ status: 'PUBLISHED', visibility: 'PUBLIC' }));
+    mocks.isMember.mockResolvedValue(false);
+
+    const campaign = await service.getById('campaign-1', 'creator');
+
+    expect(campaign).not.toHaveProperty('submissionCount');
+    expect(mocks.groupSubmissions).not.toHaveBeenCalled();
+  });
+
   it('hides a private campaign from a non-member', async () => {
     const { service, mocks } = setup(buildCampaign({ visibility: 'PRIVATE' }));
     mocks.isMember.mockResolvedValue(false);
@@ -184,6 +219,31 @@ describe('CampaignService.getById visibility', () => {
     mocks.findInvitation.mockResolvedValue({ id: 'invitation-1' });
 
     await expect(service.getById('campaign-1', 'invited-creator')).resolves.toBeDefined();
+  });
+
+  it('shows a closed campaign to a creator who submitted for it', async () => {
+    const { service, mocks } = setup(buildCampaign({ status: 'CLOSED', visibility: 'PUBLIC' }));
+    mocks.isMember.mockResolvedValue(false);
+    mocks.findSubmission.mockResolvedValue({ id: 'submission-1' });
+
+    await expect(service.getById('campaign-1', 'creator')).resolves.toBeDefined();
+  });
+
+  it('shows an invite-only campaign to a creator whose application exists', async () => {
+    const { service, mocks } = setup(buildCampaign({ status: 'PUBLISHED', visibility: 'PRIVATE' }));
+    mocks.isMember.mockResolvedValue(false);
+    mocks.findApplication.mockResolvedValue({ id: 'application-1' });
+
+    await expect(service.getById('campaign-1', 'creator')).resolves.toBeDefined();
+  });
+
+  it('hides a closed campaign from a creator who never took part', async () => {
+    const { service, mocks } = setup(buildCampaign({ status: 'CLOSED', visibility: 'PUBLIC' }));
+    mocks.isMember.mockResolvedValue(false);
+
+    await expect(service.getById('campaign-1', 'outsider')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('hides a published invite-only campaign from a creator who was not invited', async () => {
@@ -258,4 +318,3 @@ describe('CampaignService close hook', () => {
     });
   });
 });
-

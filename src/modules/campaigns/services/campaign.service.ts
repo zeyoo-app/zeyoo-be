@@ -31,6 +31,13 @@ const LIVE_EDITABLE = new Set([
 /** Runs after a campaign closes; `closedByUserId` is the brand member or staff who closed it. */
 export type CampaignClosedListener = (campaign: Campaign, closedByUserId: string) => Promise<void>;
 
+/** A campaign as its brand's team sees it, with its submission counts. */
+export type CampaignWithCounts = Campaign & {
+  submissionCount: number;
+  /** Submissions waiting for the brand to approve, request changes or reject. */
+  pendingSubmissionCount: number;
+};
+
 @Injectable()
 export class CampaignService {
   private readonly logger = new Logger(CampaignService.name);
@@ -62,21 +69,30 @@ export class CampaignService {
     });
   }
 
-  async listForOrganization(organizationId: string, requesterId: string): Promise<Campaign[]> {
+  async listForOrganization(
+    organizationId: string,
+    requesterId: string,
+  ): Promise<CampaignWithCounts[]> {
     await this.organizations.assertMember(organizationId, requesterId);
-    return this.prisma.campaign.findMany({
+    const campaigns = await this.prisma.campaign.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
+    return this.withSubmissionCounts(campaigns);
   }
 
-  async getById(campaignId: string, requesterId: string): Promise<Campaign> {
+  /** The brand's team also gets the campaign's submission counts; others get the campaign. */
+  async getById(campaignId: string, requesterId: string): Promise<Campaign | CampaignWithCounts> {
     const campaign = await this.loadOrThrow(campaignId);
     const isMember = await this.organizations.isMember(campaign.organizationId, requesterId);
+    if (isMember) {
+      const [withCounts] = await this.withSubmissionCounts([campaign]);
+      return withCounts;
+    }
     if (
-      isMember ||
       this.isPubliclyVisible(campaign) ||
-      (await this.isInvited(campaign, requesterId))
+      (await this.isInvited(campaign, requesterId)) ||
+      (await this.hasTakenPart(campaign.id, requesterId))
     ) {
       return campaign;
     }
@@ -193,6 +209,28 @@ export class CampaignService {
     return campaign;
   }
 
+  /** How many submissions each campaign has, and how many still wait for the brand's review. */
+  private async withSubmissionCounts(campaigns: Campaign[]): Promise<CampaignWithCounts[]> {
+    if (campaigns.length === 0) {
+      return [];
+    }
+    const groups = await this.prisma.submission.groupBy({
+      by: ['campaignId', 'status'],
+      where: { campaignId: { in: campaigns.map((campaign) => campaign.id) } },
+      _count: { _all: true },
+    });
+    return campaigns.map((campaign) => {
+      const own = groups.filter((group) => group.campaignId === campaign.id);
+      return {
+        ...campaign,
+        submissionCount: own.reduce((total, group) => total + group._count._all, 0),
+        pendingSubmissionCount: own
+          .filter((group) => group.status === 'PENDING')
+          .reduce((total, group) => total + group._count._all, 0),
+      };
+    });
+  }
+
   private async loadOrThrow(campaignId: string): Promise<Campaign> {
     const campaign = await this.prisma.campaign.findUnique({ where: { id: campaignId } });
     if (!campaign) {
@@ -290,6 +328,25 @@ export class CampaignService {
       select: { id: true },
     });
     return invitation !== null;
+  }
+
+  /**
+   * A creator who applied to or submitted for a campaign keeps seeing it after it
+   * closes, and after accepting an invite-only campaign's invitation: their
+   * application, submission and earnings all link back to it.
+   */
+  private async hasTakenPart(campaignId: string, creatorUserId: string): Promise<boolean> {
+    const [application, submission] = await Promise.all([
+      this.prisma.application.findFirst({
+        where: { campaignId, creatorUserId },
+        select: { id: true },
+      }),
+      this.prisma.submission.findFirst({
+        where: { campaignId, creatorUserId },
+        select: { id: true },
+      }),
+    ]);
+    return application !== null || submission !== null;
   }
 
   private isPubliclyVisible(campaign: Campaign): boolean {
