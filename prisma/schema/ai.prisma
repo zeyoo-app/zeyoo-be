@@ -1,15 +1,44 @@
 // AI module.
-// Owns an audit log of AI assistant requests. Model calls run through a provider
-// port (Anthropic Claude adapter).
+// Owns the log of AI assistant requests and the provider/model staff have chosen.
+// Model calls run through a provider-neutral layer (Ollama, Anthropic adapters).
+
+enum AiRequestStatus {
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
 
 model AiRequest {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  kind      String
-  prompt    String
-  response  String
-  createdAt DateTime @default(now())
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String           @db.Uuid
+  kind          String
+  // Prompt template id and version, e.g. "campaign-brief@v1".
+  promptVersion String?
+  provider      String?
+  model         String?
+  status        AiRequestStatus  @default(SUCCEEDED)
+  errorCode     String?
+  prompt        String
+  // The validated JSON result; null when the request failed.
+  response      String?
+  inputTokens   Int?
+  outputTokens  Int?
+  durationMs    Int?
+  createdAt     DateTime         @default(now())
 
   @@index([userId])
+  @@index([createdAt])
   @@map("ai_requests")
+}
+
+// One row ("default"): the provider and model staff picked in the admin console.
+// Absent means the environment's LLM_PROVIDER and that provider's default model.
+model AiSetting {
+  key              String   @id
+  provider         String
+  model            String
+  updatedByStaffId String?  @db.Uuid
+  updatedAt        DateTime @updatedAt
+
+  @@map("ai_settings")
 }
