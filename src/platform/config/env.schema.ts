@@ -91,8 +91,21 @@ export const envSchema = z.object({
   // Minutes between automatic view refreshes; 0 disables the scheduler.
   VIEW_SYNC_INTERVAL_MINUTES: z.coerce.number().int().nonnegative().default(360),
 
-  // Optional: enables the AI assistant features when present.
+  // AI assistants. LLM_PROVIDER picks the default provider; staff can switch the
+  // provider and model at runtime from the admin console (among configured ones).
+  LLM_PROVIDER: z.enum(['ollama', 'anthropic']).default('ollama'),
+  // Ollama: a local server (no key) or Ollama Cloud (https://ollama.com, with a key).
+  OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
+  OLLAMA_API_KEY: z.string().optional(),
+  OLLAMA_MODEL: z.string().min(1).default('gpt-oss:20b'),
   ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-5-5'),
+  // One model call, and a whole assistant run (calls, repairs and tool rounds).
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  AI_RUN_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+  AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  AI_CONTEXT_TOKENS: z.coerce.number().int().positive().default(8192),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(2048),
 });
 
 export type Env = z.infer<typeof envSchema>;

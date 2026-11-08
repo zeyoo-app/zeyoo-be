@@ -569,6 +569,121 @@
         ]
       }
     },
+    "/admin/auth/code": {
+      "post": {
+        "operationId": "StaffAuthController_requestCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestStaffCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/code/verify": {
+      "post": {
+        "operationId": "StaffAuthController_verifyCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyStaffCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/refresh": {
+      "post": {
+        "operationId": "StaffAuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/logout": {
+      "post": {
+        "operationId": "StaffAuthController_logout",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/me": {
+      "get": {
+        "operationId": "StaffAuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
     "/organizations/{organizationId}/campaigns": {
       "post": {
         "operationId": "OrgCampaignsController_create",
@@ -848,6 +963,53 @@
               "type": "string"
             }
           },
+          {
+            "name": "invitationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "campaign-invitations"
+        ]
+      }
+    },
+    "/me/invitations": {
+      "get": {
+        "operationId": "MyInvitationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "campaign-invitations"
+        ]
+      }
+    },
+    "/me/invitations/{invitationId}/decline": {
+      "post": {
+        "operationId": "MyInvitationsController_decline",
+        "parameters": [
           {
             "name": "invitationId",
             "required": true,
@@ -1626,6 +1788,236 @@
         ]
       }
     },
+    "/media/assets": {
+      "post": {
+        "operationId": "MediaAssetsController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterAssetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/assets/{assetId}": {
+      "get": {
+        "operationId": "MediaAssetsController_get",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/assets/{assetId}/clips": {
+      "post": {
+        "operationId": "MediaAssetsController_createClip",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClipDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/me/media/assets": {
+      "get": {
+        "operationId": "MyMediaController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/uploads/images": {
+      "post": {
+        "operationId": "UploadsController_uploadImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedImageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/uploads/videos": {
+      "post": {
+        "operationId": "UploadsController_startVideoUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartVideoUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoUploadTicketDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/media/uploads/videos/{assetId}/complete": {
+      "post": {
+        "operationId": "UploadsController_completeVideoUpload",
+        "parameters": [
+          {
+            "name": "assetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadedVideoDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/campaigns/{campaignId}/funding": {
       "post": {
         "operationId": "FundingController_create",
@@ -1677,6 +2069,44 @@
         ],
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "funding"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/funding/wallet": {
+      "post": {
+        "operationId": "FundingController_fromWallet",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletFundingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -1766,6 +2196,32 @@
       }
     },
     "/submissions/{submissionId}/views": {
+      "get": {
+        "operationId": "ViewTrackingController_getSubmissionViews",
+        "parameters": [
+          {
+            "name": "submissionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "view-tracking"
+        ]
+      },
       "post": {
         "operationId": "ViewTrackingController_recordManual",
         "parameters": [
@@ -1947,6 +2403,16 @@
       "post": {
         "operationId": "WalletController_connectPayout",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutConnectDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1977,6 +2443,44 @@
         ],
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/organizations/{organizationId}/wallet/top-ups": {
+      "post": {
+        "operationId": "WalletTopUpsController_create",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletTopUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -2621,6 +3125,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostedFlowDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -2674,41 +3188,12 @@
         ]
       }
     },
-    "/media/assets": {
+    "/organizations/{organizationId}/subscription/cancel": {
       "post": {
-        "operationId": "MediaAssetsController_register",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterAssetDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "media"
-        ]
-      }
-    },
-    "/media/assets/{assetId}": {
-      "get": {
-        "operationId": "MediaAssetsController_get",
+        "operationId": "OrgSubscriptionController_cancel",
         "parameters": [
           {
-            "name": "assetId",
+            "name": "organizationId",
             "required": true,
             "in": "path",
             "schema": {
@@ -2727,16 +3212,16 @@
           }
         ],
         "tags": [
-          "media"
+          "billing"
         ]
       }
     },
-    "/media/assets/{assetId}/clips": {
+    "/organizations/{organizationId}/subscription/resume": {
       "post": {
-        "operationId": "MediaAssetsController_createClip",
+        "operationId": "OrgSubscriptionController_resume",
         "parameters": [
           {
-            "name": "assetId",
+            "name": "organizationId",
             "required": true,
             "in": "path",
             "schema": {
@@ -2744,18 +3229,8 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateClipDto"
-              }
-            }
-          }
-        },
         "responses": {
-          "201": {
+          "204": {
             "description": ""
           }
         },
@@ -2765,71 +3240,7 @@
           }
         ],
         "tags": [
-          "media"
-        ]
-      }
-    },
-    "/me/media/assets": {
-      "get": {
-        "operationId": "MyMediaController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "media"
-        ]
-      }
-    },
-    "/media/uploads/images": {
-      "post": {
-        "operationId": "UploadsController_uploadImage",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "file"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UploadedImageDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "media"
+          "billing"
         ]
       }
     },
@@ -2839,6 +3250,62 @@
         "parameters": [
           {
             "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/campaigns/{campaignId}/report/csv": {
+      "get": {
+        "operationId": "CampaignReportController_csv",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/organizations/{organizationId}/performance": {
+      "get": {
+        "operationId": "OrganizationPerformanceController_get",
+        "parameters": [
+          {
+            "name": "organizationId",
             "required": true,
             "in": "path",
             "schema": {
@@ -2958,6 +3425,34 @@
             }
           }
         },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "disputes"
+        ]
+      }
+    },
+    "/disputes/{disputeId}/escalate": {
+      "post": {
+        "operationId": "DisputesController_escalate",
+        "parameters": [
+          {
+            "name": "disputeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "201": {
             "description": ""
@@ -3705,12 +4200,12 @@
         ]
       }
     },
-    "/admin/staff/{userId}/deactivate": {
+    "/admin/staff/{staffId}/deactivate": {
       "post": {
         "operationId": "AdminPeopleController_deactivateStaff",
         "parameters": [
           {
-            "name": "userId",
+            "name": "staffId",
             "required": true,
             "in": "path",
             "schema": {
@@ -3733,12 +4228,12 @@
         ]
       }
     },
-    "/admin/staff/{userId}/reactivate": {
+    "/admin/staff/{staffId}/reactivate": {
       "post": {
         "operationId": "AdminPeopleController_reactivateStaff",
         "parameters": [
           {
-            "name": "userId",
+            "name": "staffId",
             "required": true,
             "in": "path",
             "schema": {
@@ -3777,6 +4272,42 @@
         },
         "responses": {
           "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignBriefResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/ai/campaign-brief/stream": {
+      "post": {
+        "operationId": "AiController_campaignBriefStream",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignBriefDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -3806,6 +4337,42 @@
         },
         "responses": {
           "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentIdeasResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/ai/content-ideas/stream": {
+      "post": {
+        "operationId": "AiController_contentIdeasStream",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentIdeasDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -3816,6 +4383,118 @@
         ],
         "tags": [
           "ai"
+        ]
+      }
+    },
+    "/admin/ai/settings": {
+      "get": {
+        "operationId": "AdminAiController_view",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminAiController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAiSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/ai/providers/{provider}/models": {
+      "get": {
+        "operationId": "AdminAiController_models",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/ai/settings/reset": {
+      "post": {
+        "operationId": "AdminAiController_reset",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/ai/test": {
+      "post": {
+        "operationId": "AdminAiController_test",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
         ]
       }
     }
@@ -3885,6 +4564,14 @@
         "type": "object",
         "properties": {}
       },
+      "RequestStaffCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "VerifyStaffCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
       "CreateCampaignDto": {
         "type": "object",
         "properties": {}
@@ -3929,50 +4616,6 @@
         "type": "object",
         "properties": {}
       },
-      "CreateFundingDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "ManualViewsDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "RequestWithdrawalDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "HoldWithdrawalDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "AssessEngagementDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "FlagFraudDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "IngestMetricsDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "CompleteConnectionDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "StartConnectionDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "DeleteAccountDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "SubscribeDto": {
-        "type": "object",
-        "properties": {}
-      },
       "RegisterAssetDto": {
         "type": "object",
         "properties": {}
@@ -4012,6 +4655,130 @@
           "size"
         ]
       },
+      "StartVideoUploadDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "VideoUploadTicketDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Media asset id; pass it to complete the upload."
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "PUT the file here with the declared Content-Type."
+          },
+          "uploadHeaders": {
+            "type": "object",
+            "description": "Headers the PUT must carry."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "uploadUrl",
+          "uploadHeaders",
+          "url",
+          "expiresAt"
+        ]
+      },
+      "UploadedVideoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "video/mp4"
+          },
+          "size": {
+            "type": "number",
+            "description": "Stored size in bytes."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "contentType",
+          "size"
+        ]
+      },
+      "CreateFundingDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WalletFundingDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ManualViewsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RequestWithdrawalDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PayoutConnectDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "WalletTopUpDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "HoldWithdrawalDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AssessEngagementDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "FlagFraudDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "IngestMetricsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CompleteConnectionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "StartConnectionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DeleteAccountDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "HostedFlowDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SubscribeDto": {
+        "type": "object",
+        "properties": {}
+      },
       "OpenDisputeDto": {
         "type": "object",
         "properties": {}
@@ -4040,7 +4807,19 @@
         "type": "object",
         "properties": {}
       },
+      "CampaignBriefResultDto": {
+        "type": "object",
+        "properties": {}
+      },
       "ContentIdeasDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ContentIdeasResultDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateAiSettingsDto": {
         "type": "object",
         "properties": {}
       }

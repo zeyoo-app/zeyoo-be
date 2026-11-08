@@ -6,6 +6,8 @@ process.env.JWT_ACCESS_SECRET = 'e2e-access-secret-value';
 process.env.JWT_REFRESH_SECRET = 'e2e-refresh-secret-value';
 process.env.STRIPE_SECRET_KEY = 'sk_test_dummy';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_dummy';
+// Funding goes through the (fake) Stripe Checkout and webhook, never the bypass.
+process.env.PAYMENTS_BYPASS_STRIPE = 'false';
 process.env.APP_WEB_URL = 'http://localhost:3000';
 process.env.R2_ACCOUNT_ID = 'e2e-account';
 process.env.R2_ACCESS_KEY_ID = 'e2e-key';
@@ -18,6 +20,9 @@ import { Test } from '@nestjs/testing';
 import { ZodValidationPipe } from 'nestjs-zod';
 import request from 'supertest';
 import { AppModule } from '../../src/app.module';
+import { ChatRequest } from '../../src/modules/ai/llm/llm.types';
+import { LLM_PROVIDERS, ProviderRegistry } from '../../src/modules/ai/llm/provider-registry';
+import { FakeProvider } from '../../src/modules/ai/testing/fake-provider';
 import { ImageStorage } from '../../src/modules/media/media.public';
 import { Mailer } from '../../src/platform/mail';
 import { PrismaService } from '../../src/platform/database/prisma.service';
@@ -28,15 +33,22 @@ import { IMAGE_MAX_BYTES } from '../../src/platform/http/image-upload.constants'
 const pngBytes =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
+/** Checkout references the fake gateway handed out, newest last. */
+const checkoutReferences: string[] = [];
 const fakePaymentGateway = {
-  // A unique intent id per call, like the real gateway, so persisted funding
+  // A unique reference per call, like the real gateway, so persisted funding
   // rows never collide on the stripePaymentIntentId unique constraint.
-  createFundingIntent: jest
-    .fn()
-    .mockImplementation(() =>
-      Promise.resolve({ intentId: `pi_${Date.now()}_${Math.random()}`, clientSecret: 'cs_test' }),
-    ),
+  createFundingCheckout: jest.fn().mockImplementation(() => {
+    const reference = `cs_test_${Date.now()}_${Math.random()}`;
+    checkoutReferences.push(reference);
+    return Promise.resolve({ reference, url: `https://checkout.test/${reference}` });
+  }),
+  refundPayment: jest.fn().mockResolvedValue({ refundId: 're_test' }),
   createPayout: jest.fn().mockResolvedValue({ payoutId: 'po_test' }),
+  createPayoutOnboarding: jest
+    .fn()
+    .mockResolvedValue({ accountId: 'acct_test', url: 'https://connect.test' }),
+  isPayoutAccountReady: jest.fn().mockResolvedValue(false),
   parseWebhookEvent: jest.fn().mockReturnValue({ kind: 'IGNORED' }),
 };
 const fakeBillingGateway = {
@@ -50,6 +62,7 @@ const fakeMailer = {
     sentCodes.set(to, code);
     return Promise.resolve();
   }),
+  sendNotification: jest.fn().mockResolvedValue(undefined),
 };
 /** Keeps uploads in memory so e2e never touches Cloudflare R2. */
 const storedImages = new Map<string, Buffer>();
@@ -59,7 +72,49 @@ const fakeImageStorage = {
     return Promise.resolve();
   }),
 };
-const fakeAiProvider = { generate: jest.fn().mockResolvedValue('Draft output.') };
+/** Answers each assistant with a valid result for its schema, streamed in two pieces. */
+const fakeLlm = new FakeProvider([]);
+fakeLlm.stream = async function* (request: ChatRequest) {
+  fakeLlm.requests.push(request);
+  const required = (request.responseSchema?.required as string[] | undefined) ?? [];
+  const idea = {
+    title: 'Morning routine',
+    hook: 'My 6am glow secret',
+    talkingPoints: ['Texture close-up', 'How it feels after a week'],
+    format: '30-second talking head',
+  };
+  const body = required.includes('brief')
+    ? {
+        brief: 'Show your sneakers on a summer day out and say why they are comfortable to walk in.',
+        goals: 'Get people to try the summer line.',
+        audience: 'Young adults who walk a lot.',
+        contentRules: ['Show the shoes in the first 3 seconds', 'Mention the comfort'],
+        hashtags: ['SummerSteps', '#Sneakers'],
+      }
+    : { ideas: [idea, idea, idea] };
+  const text = JSON.stringify(body);
+  yield { type: 'delta', text: text.slice(0, 20) };
+  yield { type: 'delta', text: text.slice(20) };
+  yield {
+    type: 'done',
+    result: {
+      content: text,
+      toolCalls: [],
+      finishReason: 'stop',
+      usage: { inputTokens: 50, outputTokens: 80 },
+      model: request.model,
+    },
+  };
+};
+
+/** Splits a server-sent-events body into its JSON events. */
+function sseEvents(text: string): { type: string; [key: string]: unknown }[] {
+  return text
+    .split('\n\n')
+    .map((block) => block.trim())
+    .filter((block) => block.startsWith('data: '))
+    .map((block) => JSON.parse(block.slice('data: '.length)) as { type: string });
+}
 
 describe('Zeyoo API (e2e)', () => {
   let app: NestExpressApplication;
@@ -94,6 +149,38 @@ describe('Zeyoo API (e2e)', () => {
 
   const auth = (token: string): Record<string, string> => ({ Authorization: `Bearer ${token}` });
 
+  /** Back-office routes take a staff session, signed in by emailed code. Created once per run. */
+  let staffToken: string | undefined;
+  const signInAsStaff = async (): Promise<string> => {
+    if (staffToken) {
+      return staffToken;
+    }
+    const staffEmail = `staff-${runId}@test.dev`;
+    await prisma.staffAccount.create({ data: { email: staffEmail, role: 'SUPER_ADMIN' } });
+    const requested = await http().post('/v1/admin/auth/code').send({ email: staffEmail });
+    expect(requested.status).toBe(200);
+    const session = await http()
+      .post('/v1/admin/auth/code/verify')
+      .send({ email: staffEmail, code: sentCodes.get(staffEmail) });
+    expect(session.status).toBe(200);
+    staffToken = session.body.accessToken as string;
+    return staffToken;
+  };
+
+  /** Plays Stripe confirming a Checkout payment, through the real webhook route. */
+  const settleCheckout = async (reference: string): Promise<void> => {
+    fakePaymentGateway.parseWebhookEvent.mockReturnValueOnce({
+      kind: 'FUNDING_SUCCEEDED',
+      reference,
+    });
+    const webhook = await http()
+      .post('/v1/webhooks/stripe')
+      .set('stripe-signature', 't=1,v1=fake')
+      .set('Content-Type', 'application/json')
+      .send({ type: 'checkout.session.completed' });
+    expect(webhook.status).toBe(204);
+  };
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('PaymentGatewayPort')
@@ -104,11 +191,12 @@ describe('Zeyoo API (e2e)', () => {
       .useValue(fakeMailer)
       .overrideProvider(ImageStorage)
       .useValue(fakeImageStorage)
-      .overrideProvider('AiProviderPort')
-      .useValue(fakeAiProvider)
+      .overrideProvider(LLM_PROVIDERS)
+      .useValue(new ProviderRegistry([fakeLlm]))
       .compile();
 
-    app = moduleRef.createNestApplication<NestExpressApplication>();
+    // rawBody, as in main.ts, so the Stripe webhook route accepts a payload.
+    app = moduleRef.createNestApplication<NestExpressApplication>({ rawBody: true });
     app.setGlobalPrefix('v1');
     app.useGlobalPipes(new ZodValidationPipe());
     app.useGlobalFilters(new AllExceptionsFilter());
@@ -186,6 +274,23 @@ describe('Zeyoo API (e2e)', () => {
     expect(campaignRes.status).toBe(201);
     campaignId = campaignRes.body.id;
 
+    // Creators may only join a campaign whose whole budget has been paid in.
+    const unfunded = await http()
+      .post(`/v1/campaigns/${campaignId}/publish`)
+      .set(auth(brand.token));
+    expect(unfunded.status).toBe(409);
+
+    const funding = await http()
+      .post(`/v1/campaigns/${campaignId}/funding`)
+      .set(auth(brand.token))
+      .send({ amountMinor: 500000 });
+    expect(funding.status).toBe(201);
+    expect(funding.body).toMatchObject({ amountMinor: 500000, status: 'PENDING' });
+    const reference = checkoutReferences.at(-1) as string;
+    expect(funding.body.checkoutUrl).toBe(`https://checkout.test/${reference}`);
+
+    await settleCheckout(reference);
+
     const publishRes = await http()
       .post(`/v1/campaigns/${campaignId}/publish`)
       .set(auth(brand.token));
@@ -219,13 +324,20 @@ describe('Zeyoo API (e2e)', () => {
     const profileRes = await http()
       .post('/v1/creator-profile')
       .set(auth(creator.token))
-      .send({ displayName: 'Creator One', country: 'US' });
+      .send({ displayName: 'Creator One', username: `creator.${runId}`, country: 'US' });
     expect(profileRes.status).toBe(201);
+
+    // TikTok, Instagram, YouTube and Snapchat must be connected by signing in (OAuth).
+    const unverified = await http()
+      .post('/v1/creator-profile/social-accounts')
+      .set(auth(creator.token))
+      .send({ platform: 'TIKTOK', handle: 'creator.one' });
+    expect(unverified.status).toBe(400);
 
     const socialRes = await http()
       .post('/v1/creator-profile/social-accounts')
       .set(auth(creator.token))
-      .send({ platform: 'TIKTOK', handle: 'creator.one' });
+      .send({ platform: 'X', handle: 'creator.one' });
     expect(socialRes.status).toBe(201);
 
     const directory = await http().get(`/v1/creators/${creator.userId}`).set(auth(brand.token));
@@ -284,13 +396,14 @@ describe('Zeyoo API (e2e)', () => {
     expect(assess.body.level).toBe('HIGH');
   });
 
-  it('funds a campaign and returns a client secret', async () => {
-    const response = await http()
-      .post(`/v1/campaigns/${campaignId}/funding`)
-      .set(auth(brand.token))
-      .send({ amountMinor: 100000 });
-    expect(response.status).toBe(201);
-    expect(response.body.clientSecret).toBe('cs_test');
+  it('reports the settled campaign funding', async () => {
+    const response = await http().get(`/v1/campaigns/${campaignId}/funding`).set(auth(brand.token));
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      amountMinor: 500000,
+      currencyCode: 'USD',
+      status: 'SUCCEEDED',
+    });
   });
 
   it('produces a campaign analytics report', async () => {
@@ -402,7 +515,8 @@ describe('Zeyoo API (e2e)', () => {
     const open = await http()
       .post('/v1/disputes')
       .set(auth(creator.token))
-      .send({ subjectType: 'CAMPAIGN', subjectId: campaignId, reason: 'Payout delayed.' });
+      // A creator disputes their own submission; campaign disputes are for the brand.
+      .send({ subjectType: 'SUBMISSION', subjectId: submissionId, reason: 'Payout delayed.' });
     expect(open.status).toBe(201);
     disputeId = open.body.id;
 
@@ -413,29 +527,162 @@ describe('Zeyoo API (e2e)', () => {
     expect(message.status).toBe(201);
   });
 
-  it('runs AI assistant endpoints', async () => {
-    const brief = await http()
+  it('drafts a campaign brief as JSON and as a stream', async () => {
+    const json = await http()
       .post('/v1/ai/campaign-brief')
       .set(auth(brand.token))
-      .send({ idea: 'A summer campaign for sneakers.' });
-    expect(brief.status).toBe(200);
-    expect(brief.body.response).toBe('Draft output.');
+      .send({ idea: 'A summer campaign for sneakers.', platforms: ['TIKTOK'], language: 'en' });
+    expect(json.status).toBe(200);
+    expect(json.body.data.hashtags).toEqual(['#SummerSteps', '#Sneakers']);
+    expect(json.body.meta).toMatchObject({ provider: 'ollama', promptVersion: 'campaign-brief@v1' });
+
+    const stream = await http()
+      .post('/v1/ai/campaign-brief/stream')
+      .set(auth(brand.token))
+      .send({ idea: 'A summer campaign for sneakers.' })
+      .buffer(true)
+      .parse((res, done) => {
+        let text = '';
+        res.on('data', (chunk: Buffer) => (text += chunk.toString()));
+        res.on('end', () => done(null, text));
+      });
+    expect(stream.status).toBe(200);
+    expect(stream.headers['content-type']).toContain('text/event-stream');
+    const events = sseEvents(stream.body as string);
+    expect(events.map((event) => event.type)).toEqual(
+      expect.arrayContaining(['status', 'partial', 'result']),
+    );
+    expect(events.at(-1)).toMatchObject({ type: 'result', data: { goals: expect.any(String) } });
+
+    const logged = await prisma.aiRequest.findFirst({
+      where: { kind: 'campaign-brief', status: 'SUCCEEDED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(logged).toMatchObject({ promptVersion: 'campaign-brief@v1', outputTokens: 80 });
   });
 
-  it('exposes admin endpoints only to admins', async () => {
+  it('validates assistant input and permissions', async () => {
+    const tooShort = await http()
+      .post('/v1/ai/campaign-brief')
+      .set(auth(brand.token))
+      .send({ idea: 'x' });
+    expect(tooShort.status).toBe(400);
+
+    const creatorBrief = await http()
+      .post('/v1/ai/campaign-brief')
+      .set(auth(creator.token))
+      .send({ idea: 'A summer campaign for sneakers.' });
+    expect(creatorBrief.status).toBe(403);
+  });
+
+  it('suggests content ideas for a visible campaign only', async () => {
+    const createCampaign = (title: string) =>
+      http()
+        .post(`/v1/organizations/${organizationId}/campaigns`)
+        .set(auth(brand.token))
+        .send({
+          title,
+          description: 'Promote the summer line with outdoor walks.',
+          platform: 'TIKTOK',
+          visibility: 'PUBLIC',
+          startDate: '2026-01-01',
+          endDate: '2026-03-01',
+          currencyCode: 'USD',
+          budgetAmount: 100000,
+          rewardType: 'FIXED_PER_ITEM',
+          rewardAmount: 5000,
+        });
+    const live = await createCampaign('Ideas Launch');
+    expect(live.status).toBe(201);
+    // Published directly: funding is covered by the payments tests.
+    await prisma.campaign.update({
+      where: { id: live.body.id },
+      data: { status: 'PUBLISHED', publishedAt: new Date() },
+    });
+
+    const ideas = await http()
+      .post('/v1/ai/content-ideas')
+      .set(auth(creator.token))
+      .send({ campaignId: live.body.id, focus: 'comedy skits' });
+    expect(ideas.status).toBe(200);
+    expect(ideas.body.data.ideas).toHaveLength(3);
+    const task = fakeLlm.requests.at(-1)?.messages.find((message) => message.role === 'user');
+    expect(task?.content).toContain('Ideas Launch');
+    expect(task?.content).toContain('comedy skits');
+
+    const draft = await createCampaign('Secret Draft');
+    expect(draft.status).toBe(201);
+    const hidden = await http()
+      .post('/v1/ai/content-ideas/stream')
+      .set(auth(creator.token))
+      .send({ campaignId: draft.body.id });
+    expect(hidden.status).toBe(403);
+  });
+
+  it('lets admins see and change the AI provider settings', async () => {
+    const forbidden = await http().get('/v1/admin/ai/settings').set(auth(brand.token));
+    expect(forbidden.status).toBe(403);
+
+    const staff = { token: await signInAsStaff() };
+
+    const view = await http().get('/v1/admin/ai/settings').set(auth(staff.token));
+    expect(view.status).toBe(200);
+    expect(view.body.active.provider).toBe('ollama');
+
+    const models = await http()
+      .get('/v1/admin/ai/providers/ollama/models')
+      .set(auth(staff.token));
+    expect(models.status).toBe(200);
+    expect(models.body).toEqual([{ name: 'fake-model' }]);
+
+    const saved = await http()
+      .post('/v1/admin/ai/settings')
+      .set(auth(staff.token))
+      .send({ provider: 'ollama', model: 'fake-model' });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({
+      source: 'admin',
+      active: { provider: 'ollama', model: 'fake-model' },
+    });
+
+    const unknown = await http()
+      .post('/v1/admin/ai/settings')
+      .set(auth(staff.token))
+      .send({ provider: 'ollama', model: 'not-a-model' });
+    expect(unknown.status).toBe(400);
+
+    const test = await http().post('/v1/admin/ai/test').set(auth(staff.token));
+    expect(test.status).toBe(200);
+    expect(test.body.ok).toBe(true);
+
+    const reset = await http().post('/v1/admin/ai/settings/reset').set(auth(staff.token));
+    expect(reset.body.source).toBe('environment');
+  });
+
+  it('exposes admin endpoints only to staff sessions', async () => {
     const forbidden = await http().get('/v1/admin/users').set(auth(brand.token));
     expect(forbidden.status).toBe(403);
 
-    const users = await http().get('/v1/admin/users').set(auth(adminUser.token));
+    // The ADMIN user type is retired: back-office access comes from a staff account.
+    const retiredAdmin = await http().get('/v1/admin/users').set(auth(adminUser.token));
+    expect(retiredAdmin.status).toBe(403);
+
+    const staffToken = await signInAsStaff();
+
+    // A staff session is kept to the back office.
+    const notBackOffice = await http().get('/v1/me/notifications').set(auth(staffToken));
+    expect(notBackOffice.status).toBe(403);
+
+    const users = await http().get('/v1/admin/users').set(auth(staffToken));
     expect(users.status).toBe(200);
 
     const category = await http()
       .post('/v1/admin/campaign-categories')
-      .set(auth(adminUser.token))
+      .set(auth(staffToken))
       .send({ name: `Fashion ${runId}` });
     expect(category.status).toBe(201);
 
-    const disputes = await http().get('/v1/admin/disputes').set(auth(adminUser.token));
+    const disputes = await http().get('/v1/admin/disputes').set(auth(staffToken));
     expect(disputes.status).toBe(200);
     expect(disputes.body.some((d: { id: string }) => d.id === disputeId)).toBe(true);
   });
