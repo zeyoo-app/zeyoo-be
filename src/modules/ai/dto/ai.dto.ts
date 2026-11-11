@@ -4,7 +4,7 @@ import { campaignBriefOutput } from '../prompts/campaign-brief.v1';
 import { contentIdeasOutput } from '../prompts/content-ideas.v1';
 
 const language = z.enum(['en', 'ar']).default('en');
-const platform = z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X']);
+const platform = z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X', 'FACEBOOK']);
 
 export const campaignBriefSchema = z.object({
   /** What the brand is promoting, in its own words. */

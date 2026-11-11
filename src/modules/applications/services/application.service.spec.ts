@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Application, Campaign } from '@prisma/client';
 import { PrismaService } from '@platform/database/prisma.service';
 import { CampaignService, InvitationService } from '@modules/campaigns/campaigns.public';
@@ -175,6 +175,88 @@ describe('ApplicationService.review', () => {
         type: 'APPLICATION_REVIEWED',
         title: 'Your application was approved',
       }),
+    );
+  });
+});
+
+describe('ApplicationService.joinBySubmitting', () => {
+  it('lets a creator join a public campaign by submitting, approved at once', async () => {
+    const { service, mocks } = setup(buildCampaign());
+
+    await service.joinBySubmitting('campaign-1', 'creator-1', true);
+
+    expect(mocks.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: 'APPROVED', source: 'DIRECT', acceptedTerms: true }),
+    });
+    expect(mocks.notify).not.toHaveBeenCalled();
+  });
+
+  it('needs the terms accepted by a newcomer', async () => {
+    const { service, mocks } = setup(buildCampaign());
+
+    await expect(service.joinBySubmitting('campaign-1', 'creator-1', undefined)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('still needs an invitation for a private campaign', async () => {
+    const { service, mocks } = setup(buildCampaign({ visibility: 'PRIVATE' }));
+
+    await expect(service.joinBySubmitting('campaign-1', 'creator-1', true)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts the invitation when an invited creator submits', async () => {
+    const { service, mocks } = setup(buildCampaign({ visibility: 'PRIVATE' }));
+    mocks.hasPendingInvitation.mockResolvedValue(true);
+
+    await service.joinBySubmitting('campaign-1', 'creator-1', true);
+
+    expect(mocks.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ source: 'INVITATION', status: 'APPROVED' }),
+    });
+    expect(mocks.markAccepted).toHaveBeenCalledWith('campaign-1', 'creator-1');
+  });
+
+  it('refuses a campaign that is not open', async () => {
+    const { service } = setup(buildCampaign({ status: 'CLOSED' } as Partial<Campaign>));
+
+    await expect(service.joinBySubmitting('campaign-1', 'creator-1', true)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('lets an already-approved creator through without asking again', async () => {
+    const { service, mocks } = setup(buildCampaign({ status: 'CLOSED' } as Partial<Campaign>));
+    mocks.findExisting.mockResolvedValue({ id: 'app-1', status: 'APPROVED' });
+
+    await service.joinBySubmitting('campaign-1', 'creator-1', undefined);
+
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('approves an application still pending from the old flow', async () => {
+    const { service, mocks } = setup(buildCampaign());
+    mocks.findExisting.mockResolvedValue({ id: 'app-1', status: 'PENDING' });
+
+    await service.joinBySubmitting('campaign-1', 'creator-1', undefined);
+
+    expect(mocks.update).toHaveBeenCalledWith({
+      where: { id: 'app-1' },
+      data: expect.objectContaining({ status: 'APPROVED' }),
+    });
+  });
+
+  it('keeps out a creator the brand declined', async () => {
+    const { service, mocks } = setup(buildCampaign());
+    mocks.findExisting.mockResolvedValue({ id: 'app-1', status: 'DECLINED' });
+
+    await expect(service.joinBySubmitting('campaign-1', 'creator-1', true)).rejects.toBeInstanceOf(
+      ForbiddenException,
     );
   });
 });

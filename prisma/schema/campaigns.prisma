@@ -9,6 +9,7 @@ enum SocialPlatform {
   SNAPCHAT
   YOUTUBE
   X
+  FACEBOOK
 }
 
 enum CampaignStatus {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -87,6 +88,63 @@ export class ApplicationService {
       select: { status: true },
     });
     return application?.status === 'APPROVED';
+  }
+
+  /**
+   * Lets a creator take part by submitting content, with no separate application to
+   * wait on: the brand reviews the submission itself. The application row is still
+   * recorded — approved at once — because it is what marks a creator as taking part
+   * (analytics, invitations, the terms they accepted). The rules an application used to
+   * enforce still hold: the campaign must be open, a private campaign needs an
+   * invitation, and a newcomer must accept the terms. A creator the brand already
+   * declined stays declined.
+   */
+  async joinBySubmitting(
+    campaignId: string,
+    creatorUserId: string,
+    acceptedTerms: boolean | undefined,
+  ): Promise<void> {
+    const existing = await this.prisma.application.findUnique({
+      where: { campaignId_creatorUserId: { campaignId, creatorUserId } },
+    });
+    if (existing?.status === 'APPROVED') {
+      return;
+    }
+    if (existing?.status === 'DECLINED') {
+      throw new ForbiddenException('The brand declined your participation in this campaign.');
+    }
+
+    const campaign = await this.campaigns.requireCampaign(campaignId);
+    if (campaign.status !== 'PUBLISHED') {
+      throw new ConflictException('This campaign is not accepting submissions.');
+    }
+    if (existing) {
+      // An application sent under the old flow, still pending or withdrawn: submitting is
+      // the creator's way of joining now, and the brand reviews the content instead.
+      await this.prisma.application.update({
+        where: { id: existing.id },
+        data: { status: 'APPROVED', decidedAt: new Date() },
+      });
+      return;
+    }
+
+    if (acceptedTerms !== true) {
+      throw new BadRequestException("Accept the campaign's terms to submit.");
+    }
+    const fromInvitation = await this.resolveInvitationEligibility(campaign, creatorUserId);
+    await this.prisma.application.create({
+      data: {
+        campaignId,
+        creatorUserId,
+        source: fromInvitation ? 'INVITATION' : 'DIRECT',
+        acceptedTerms: true,
+        status: 'APPROVED',
+        decidedAt: new Date(),
+      },
+    });
+    if (fromInvitation) {
+      await this.invitations.markAccepted(campaignId, creatorUserId);
+    }
   }
 
   async withdraw(applicationId: string, creatorUserId: string): Promise<Application> {
