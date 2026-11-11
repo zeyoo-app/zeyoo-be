@@ -5,7 +5,7 @@ const TITLE_MIN = 3;
 const TITLE_MAX = 140;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
-const platformSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X']);
+const platformSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X', 'FACEBOOK']);
 const visibilitySchema = z.enum(['PUBLIC', 'PRIVATE']);
 const rewardTypeSchema = z.enum(['FIXED_PER_ITEM', 'PER_VIEW']);
 const contentTypeSchema = z.enum(['UGC', 'CLIPPING']);

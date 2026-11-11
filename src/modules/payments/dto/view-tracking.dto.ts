@@ -5,7 +5,7 @@ const count = z.number().int().nonnegative();
 
 export const manualViewsSchema = z.object({
   // Which of the submission's posts the count is for; optional with a single post.
-  platform: z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X']).optional(),
+  platform: z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X', 'FACEBOOK']).optional(),
   views: count,
   likes: count.optional(),
   comments: count.optional(),

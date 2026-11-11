@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-const platformSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X']);
+const platformSchema = z.enum(['TIKTOK', 'INSTAGRAM', 'SNAPCHAT', 'YOUTUBE', 'X', 'FACEBOOK']);
 
 const postSchema = z.object({
   platform: platformSchema,
@@ -17,6 +17,9 @@ export const submitContentSchema = z
     // LINK only: one published post per campaign platform the creator posted on.
     posts: z.array(postSchema).min(1).max(5).optional(),
     note: z.string().max(1000).optional(),
+    // A creator joins a campaign by submitting to it, so a first submission carries the
+    // terms acceptance an application used to. Not needed once they are taking part.
+    acceptedTerms: z.boolean().optional(),
   })
   .refine((value) => value.contentType === 'UPLOAD' || Boolean(value.posts ?? value.contentUrl), {
     message: 'Add the link to at least one post.',

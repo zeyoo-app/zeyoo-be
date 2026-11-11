@@ -13,7 +13,7 @@ interface Mocks {
   findUnique: jest.Mock;
   create: jest.Mock;
   update: jest.Mock;
-  hasApprovedApplication: jest.Mock;
+  joinBySubmitting: jest.Mock;
   assertOwnReadyVideo: jest.Mock;
   notify: jest.Mock;
 }
@@ -28,7 +28,7 @@ function setup(existingSubmission: Submission | null): {
     findUnique: jest.fn().mockResolvedValue(existingSubmission),
     create: jest.fn(),
     update: jest.fn(),
-    hasApprovedApplication: jest.fn().mockResolvedValue(true),
+    joinBySubmitting: jest.fn().mockResolvedValue(undefined),
     assertOwnReadyVideo: jest.fn().mockResolvedValue(undefined),
     notify: jest.fn().mockResolvedValue(undefined),
   };
@@ -48,7 +48,7 @@ function setup(existingSubmission: Submission | null): {
     memberUserIds: jest.fn().mockResolvedValue(['brand-owner']),
   } as unknown as OrganizationService;
   const applications = {
-    hasApprovedApplication: mocks.hasApprovedApplication,
+    joinBySubmitting: mocks.joinBySubmitting,
   } as unknown as ApplicationService;
   const profiles = {
     summariesByUserIds: jest
@@ -82,9 +82,18 @@ function buildSubmission(overrides: Partial<Submission> = {}): Submission {
 }
 
 describe('SubmissionService.submit', () => {
-  it('rejects a creator without an approved application', async () => {
+  it('joins the creator to the campaign by submitting, passing on their terms acceptance', async () => {
     const { service, mocks } = setup(null);
-    mocks.hasApprovedApplication.mockResolvedValue(false);
+
+    await service.submit('campaign-1', 'creator-1', { ...submitLink, acceptedTerms: true });
+
+    expect(mocks.joinBySubmitting).toHaveBeenCalledWith('campaign-1', 'creator-1', true);
+    expect(mocks.create).toHaveBeenCalled();
+  });
+
+  it('stores nothing when the creator may not join', async () => {
+    const { service, mocks } = setup(null);
+    mocks.joinBySubmitting.mockRejectedValue(new ForbiddenException('private'));
 
     await expect(service.submit('campaign-1', 'creator-1', submitLink)).rejects.toBeInstanceOf(
       ForbiddenException,

@@ -67,9 +67,10 @@ export class SubmissionService {
     creatorUserId: string,
     dto: SubmitContentDto,
   ): Promise<SubmissionWithRevisions> {
-    await this.assertApprovedToSubmit(campaignId, creatorUserId);
     await this.assertNoExistingSubmission(campaignId, creatorUserId);
     await this.assertUploadIsOwn(creatorUserId, dto);
+    // Submitting is how a creator joins; the brand approves or rejects the content.
+    await this.applications.joinBySubmitting(campaignId, creatorUserId, dto.acceptedTerms);
     const campaign = await this.campaigns.requireCampaign(campaignId);
     const created = await this.prisma.submission.create({
       data: { campaignId, creatorUserId, revisions: { create: toRevisionData(dto, campaign) } },
@@ -255,13 +256,6 @@ export class SubmissionService {
     return submission;
   }
 
-  private async assertApprovedToSubmit(campaignId: string, creatorUserId: string): Promise<void> {
-    const approved = await this.applications.hasApprovedApplication(campaignId, creatorUserId);
-    if (!approved) {
-      throw new ForbiddenException('An approved application is required to submit content.');
-    }
-  }
-
   private async assertNoExistingSubmission(
     campaignId: string,
     creatorUserId: string,
@@ -353,6 +347,7 @@ const PLATFORM_NAMES: Record<SocialPlatform, string> = {
   SNAPCHAT: 'Snapchat',
   YOUTUBE: 'YouTube',
   X: 'X',
+  FACEBOOK: 'Facebook',
 };
 
 const LATEST_REVISION_FIELDS = {
