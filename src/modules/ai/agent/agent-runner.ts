@@ -8,6 +8,7 @@ import {
   ToolCall,
   ToolSpec,
 } from '../llm/llm.types';
+import { fitToSchema } from './fit-to-schema';
 import { parsePartialJson } from './partial-json';
 
 /** A function the model may call during a run, with validated arguments. */
@@ -65,6 +66,13 @@ export const DEFAULT_AGENT_LIMITS: AgentLimits = {
   partialIntervalMs: 120,
 };
 
+/**
+ * How far the output budget may grow when replies keep getting cut off: thinking
+ * models spend part of it reasoning before they write, so a fixed budget that suits
+ * one model cuts another short.
+ */
+const MAX_OUTPUT_GROWTH = 4;
+
 /** The model's final reply could not be turned into a valid result. */
 export class AgentOutputError extends Error {
   constructor(message: string) {
@@ -88,6 +96,7 @@ export class AgentRunner {
     const tools = new Map((input.tools ?? []).map((tool) => [tool.spec.name, tool]));
     let messages = input.messages;
     let repairs = 0;
+    let maxOutputTokens = input.maxOutputTokens;
     const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
 
     for (let step = 1; step <= this.limits.maxSteps; step += 1) {
@@ -97,8 +106,17 @@ export class AgentRunner {
         stage: step === 1 ? 'thinking' : repairs > 0 ? 'fixing' : 'thinking',
       });
 
-      const reply = await this.callModel(input, messages, tools);
+      const reply = await this.callModel(input, messages, tools, maxOutputTokens);
       addUsage(usage, reply.usage);
+
+      if (reply.cutOff) {
+        // Ask again with more room rather than failing; the cut-off text is discarded.
+        if (maxOutputTokens >= input.maxOutputTokens * MAX_OUTPUT_GROWTH) {
+          throw new AgentOutputError('The AI reply was cut off before it finished.');
+        }
+        maxOutputTokens *= 2;
+        continue;
+      }
 
       if (reply.toolCalls.length > 0) {
         messages = this.context.fit([
@@ -136,7 +154,14 @@ export class AgentRunner {
     input: AgentRunInput<unknown>,
     messages: ChatMessage[],
     tools: Map<string, AgentTool>,
-  ): Promise<{ content: string; toolCalls: ToolCall[]; usage: TokenUsage; model: string }> {
+    maxOutputTokens: number,
+  ): Promise<{
+    content: string;
+    toolCalls: ToolCall[];
+    usage: TokenUsage;
+    model: string;
+    cutOff: boolean;
+  }> {
     let text = '';
     let lastPartialAt = 0;
     let announcedWriting = false;
@@ -146,7 +171,7 @@ export class AgentRunner {
       tools: tools.size ? [...tools.values()].map((tool) => tool.spec) : undefined,
       responseSchema: input.outputSchema,
       temperature: input.temperature,
-      maxOutputTokens: input.maxOutputTokens,
+      maxOutputTokens,
       contextTokens: input.contextTokens,
       signal: input.signal,
     })) {
@@ -165,14 +190,12 @@ export class AgentRunner {
           }
         }
       } else if (event.type === 'done') {
-        if (event.result.finishReason === 'length') {
-          throw new AgentOutputError('The AI reply was cut off before it finished.');
-        }
         return {
           content: event.result.content,
           toolCalls: event.result.toolCalls,
           usage: event.result.usage,
           model: event.result.model,
+          cutOff: event.result.finishReason === 'length',
         };
       }
     }
@@ -234,7 +257,7 @@ export class AgentRunner {
     } catch {
       return { ok: false, error: 'it was not valid JSON' };
     }
-    const result = schema.safeParse(parsed);
+    const result = schema.safeParse(fitToSchema(schema, parsed));
     return result.success
       ? { ok: true, data: result.data }
       : { ok: false, error: formatIssues(result.error.issues) };

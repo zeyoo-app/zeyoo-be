@@ -105,7 +105,7 @@ export const envSchema = z.object({
   AI_RUN_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   AI_CONTEXT_TOKENS: z.coerce.number().int().positive().default(8192),
-  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(2048),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(4096),
 });
 
 export type Env = z.infer<typeof envSchema>;

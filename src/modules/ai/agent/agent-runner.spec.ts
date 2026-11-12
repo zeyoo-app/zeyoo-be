@@ -93,10 +93,40 @@ describe('AgentRunner', () => {
     expect(provider.requests).toHaveLength(2);
   });
 
-  it('fails when the reply was cut off by the token limit', async () => {
-    const provider = new FakeProvider([{ text: '{"title":"Lo', finishReason: 'length' }]);
+  it('asks again with more room when a reply is cut off by the token limit', async () => {
+    const provider = new FakeProvider([
+      { text: '{"title":"Lo', finishReason: 'length' },
+      { text: '{"title":"Long enough","tags":["#a"]}' },
+    ]);
+
+    const result = await runner().run(input(provider));
+
+    expect(result.data).toEqual({ title: 'Long enough', tags: ['#a'] });
+    expect(provider.requests.map((request) => request.maxOutputTokens)).toEqual([500, 1000]);
+    // The cut-off text is not sent back to the model.
+    expect(provider.requests[1].messages).toHaveLength(2);
+  });
+
+  it('fails once the output budget has grown as far as it may', async () => {
+    const cutOff = { text: '{"title":"Lo', finishReason: 'length' as const };
+    const provider = new FakeProvider([cutOff, cutOff, cutOff, cutOff]);
 
     await expect(runner().run(input(provider))).rejects.toThrow('cut off');
+    expect(provider.requests.map((request) => request.maxOutputTokens)).toEqual([500, 1000, 2000]);
+  });
+
+  it('tidies small slips instead of failing: extra fields, long text, too many items', async () => {
+    const strict = z
+      .object({ title: z.string().min(3).max(12), tags: z.array(z.string().min(2)).min(1).max(2) })
+      .strict();
+    const provider = new FakeProvider([
+      { text: '{"title":"  A rather long title here ","tags":["#a1","x","#b2","#c3"],"extra":1}' },
+    ]);
+
+    const result = await runner().run(input(provider, { output: strict }));
+
+    expect(result.data).toEqual({ title: 'A rather', tags: ['#a1', '#b2'] });
+    expect(provider.requests).toHaveLength(1);
   });
 
   it('runs requested tools with validated arguments and feeds results back', async () => {
