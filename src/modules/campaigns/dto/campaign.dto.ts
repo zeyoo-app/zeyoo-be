@@ -28,7 +28,7 @@ const campaignFields = z.object({
   coverImageUrl: z.string().url().max(2048).optional(),
   // Either `platforms` (preferred) or the legacy single `platform`; the service stores both.
   platform: platformSchema.optional(),
-  platforms: z.array(platformSchema).min(1).max(5).optional(),
+  platforms: z.array(platformSchema).min(1).max(platformSchema.options.length).optional(),
   contentType: contentTypeSchema.default('UGC'),
   categoryId: z.string().uuid().optional(),
   visibility: visibilitySchema.default('PUBLIC'),
