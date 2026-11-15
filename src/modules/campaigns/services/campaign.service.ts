@@ -32,11 +32,18 @@ const LIVE_EDITABLE = new Set([
 export type CampaignClosedListener = (campaign: Campaign, closedByUserId: string) => Promise<void>;
 
 /** A campaign as its brand's team sees it, with its submission counts. */
-export type CampaignWithCounts = Campaign & {
+export type CampaignWithCounts = Campaign & SubmissionCounts;
+
+interface SubmissionCounts {
   submissionCount: number;
   /** Submissions waiting for the brand to approve, request changes or reject. */
   pendingSubmissionCount: number;
-};
+}
+
+/** A campaign with the name of the brand that runs it, which creators are shown. */
+export type CampaignWithBrand = Campaign & { organization: { name: string } };
+
+const BRAND_NAME = { organization: { select: { name: true } } } as const;
 
 @Injectable()
 export class CampaignService {
@@ -82,8 +89,17 @@ export class CampaignService {
   }
 
   /** The brand's team also gets the campaign's submission counts; others get the campaign. */
-  async getById(campaignId: string, requesterId: string): Promise<Campaign | CampaignWithCounts> {
-    const campaign = await this.loadOrThrow(campaignId);
+  async getById(
+    campaignId: string,
+    requesterId: string,
+  ): Promise<CampaignWithBrand | (CampaignWithBrand & SubmissionCounts)> {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: BRAND_NAME,
+    });
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found.');
+    }
     const isMember = await this.organizations.isMember(campaign.organizationId, requesterId);
     if (isMember) {
       const [withCounts] = await this.withSubmissionCounts([campaign]);
@@ -162,8 +178,9 @@ export class CampaignService {
   }
 
   // Every public campaign, plus the invite-only ones this creator has been invited to.
-  discoverFor(creatorUserId: string): Promise<Campaign[]> {
+  discoverFor(creatorUserId: string): Promise<CampaignWithBrand[]> {
     return this.prisma.campaign.findMany({
+      include: BRAND_NAME,
       where: {
         status: 'PUBLISHED',
         OR: [
@@ -210,7 +227,9 @@ export class CampaignService {
   }
 
   /** How many submissions each campaign has, and how many still wait for the brand's review. */
-  private async withSubmissionCounts(campaigns: Campaign[]): Promise<CampaignWithCounts[]> {
+  private async withSubmissionCounts<T extends Campaign>(
+    campaigns: T[],
+  ): Promise<(T & SubmissionCounts)[]> {
     if (campaigns.length === 0) {
       return [];
     }
