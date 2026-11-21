@@ -57,13 +57,40 @@ export interface SettlementSummary {
   budgetRemainingMinor: number;
 }
 
+/**
+ * What approving (or syncing) would pay one creator right now for a given view count,
+ * worked out exactly as a settlement pass would, but without crediting anything.
+ */
+export interface PayoutQuote {
+  currencyCode: string;
+  rewardType: Campaign['rewardType'];
+  /** Per 1,000 views for PER_VIEW; per approved item for FIXED_PER_ITEM. */
+  rewardMinor: number;
+  views: number;
+  /** What these views earn in total, after the per-creator limit. */
+  entitledMinor: number;
+  /** Already credited to the creator on this campaign. */
+  alreadyPaidMinor: number;
+  /** Credited now: the rest of the entitlement, as far as the funded budget goes. */
+  payNowMinor: number;
+  /** The most one creator may earn; null when there is no limit. */
+  capMinor: number | null;
+  budgetRemainingMinor: number;
+  /** What is holding the amount below rate × views, if anything. */
+  limitedBy: 'cap' | 'budget' | null;
+  /** A fraud review is stopping this creator's earnings. */
+  paused: boolean;
+}
+
 const MINOR_UNITS_PER_MAJOR = 100;
 const NO_ENGAGEMENT = { views: 0, likes: 0, comments: 0, shares: 0 };
 
 /**
  * Turns approved submissions and their latest view counts into creator earnings.
- * Idempotent: each pass credits only what a creator is newly entitled to, and never
- * more than the campaign's budget or what its brand has actually funded.
+ * Nothing pays on its own: a creator is credited only when the brand acts — approving
+ * the submission, or paying for views gained since. Idempotent: each payment credits
+ * only what a creator is newly entitled to, and never more than the campaign's budget
+ * or what its brand has actually funded.
  */
 @Injectable()
 export class EarningsSettlementService {
@@ -135,14 +162,67 @@ export class EarningsSettlementService {
     }));
   }
 
-  /** For the scheduler, which acts for the platform rather than for a brand member. */
-  async settleCampaignAsSystem(campaignId: string): Promise<SettlementSummary> {
-    return this.settle(await this.campaigns.requireCampaign(campaignId));
+  /**
+   * The payout for one creator at a given view count, as the next settlement would make
+   * it. Callers check access to the campaign first.
+   */
+  async quote(campaign: Campaign, creatorUserId: string, views: number): Promise<PayoutQuote> {
+    const [spendableMinor, accruedByCreator, pausedCreatorIds] = await Promise.all([
+      this.spendableMinor(campaign),
+      this.accruedByCreator(campaign.id),
+      this.fraud.pausedCreatorIds(campaign.id),
+    ]);
+    const budgetRemainingMinor = Math.max(0, spendableMinor - sum(accruedByCreator.values()));
+    const alreadyPaidMinor = accruedByCreator.get(creatorUserId) ?? 0;
+    const entitledMinor = this.entitledMinor(campaign, views);
+    const owedMinor = Math.max(0, entitledMinor - alreadyPaidMinor);
+    const paused = pausedCreatorIds.has(creatorUserId);
+    const payNowMinor = paused ? 0 : Math.min(owedMinor, budgetRemainingMinor);
+    const capMinor = campaign.maxRewardPerCreatorAmount;
+    const uncappedMinor = this.entitledMinor(
+      { ...campaign, maxRewardPerCreatorAmount: null },
+      views,
+    );
+    return {
+      currencyCode: campaign.currencyCode,
+      rewardType: campaign.rewardType,
+      rewardMinor: campaign.rewardAmount,
+      views,
+      entitledMinor,
+      alreadyPaidMinor,
+      payNowMinor,
+      capMinor,
+      budgetRemainingMinor,
+      limitedBy:
+        !paused && owedMinor > budgetRemainingMinor
+          ? 'budget'
+          : capMinor !== null && uncappedMinor > capMinor
+            ? 'cap'
+            : null,
+      paused,
+    };
   }
 
-  private async settle(campaign: Campaign): Promise<SettlementSummary> {
+  /**
+   * Pays one approved creator what their recorded views have earned and they haven't
+   * been paid yet, for the brand who approved it. Callers check access first.
+   */
+  async payCreator(campaign: Campaign, creatorUserId: string): Promise<CreatorSettlement> {
+    const summary = await this.settle(campaign, creatorUserId);
+    return (
+      summary.creators[0] ?? {
+        creatorUserId,
+        views: 0,
+        accruedMinor: 0,
+        creditedNowMinor: 0,
+        paused: false,
+      }
+    );
+  }
+
+  private async settle(campaign: Campaign, onlyCreatorId?: string): Promise<SettlementSummary> {
     const campaignId = campaign.id;
-    const [creatorIds, viewsByCreator, spendableMinor, accruedByCreator, pausedCreatorIds] =
+    const [approvedIds, viewsByCreator, spendableMinor, accruedByCreator, pausedCreatorIds] =
       await Promise.all([
         this.submissions.approvedCreatorIds(campaignId),
         this.metrics.latestViewsByCreator(campaignId),
@@ -151,6 +231,9 @@ export class EarningsSettlementService {
         this.fraud.pausedCreatorIds(campaignId),
       ]);
 
+    const creatorIds = onlyCreatorId
+      ? approvedIds.filter((id) => id === onlyCreatorId)
+      : approvedIds;
     let budgetRemainingMinor = spendableMinor - sum(accruedByCreator.values());
     const creators: CreatorSettlement[] = [];
     // Sequential on purpose: each credit shrinks the budget the next one may use.

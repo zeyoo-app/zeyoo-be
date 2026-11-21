@@ -50,6 +50,15 @@ interface PostInput {
   url: string;
 }
 
+/** An approved post as other creators see it on a campaign's community page. */
+export interface CommunitySubmission {
+  id: string;
+  creatorUserId: string;
+  creator: Pick<CreatorSummary, 'displayName' | 'username' | 'avatarUrl'> | null;
+  posts: { platform: SocialPlatform; url: string }[];
+  approvedAt: Date;
+}
+
 @Injectable()
 export class SubmissionService {
   constructor(
@@ -135,6 +144,33 @@ export class SubmissionService {
     }
     await this.assertCanView(submission, requesterId);
     return submission;
+  }
+
+  /**
+   * The campaign's approved posts as other creators may see them: who made each and
+   * where it was posted, and nothing the brand alone should see (review notes, pending
+   * or rejected work, earnings). The caller checks that the requester may view the
+   * campaign.
+   */
+  async approvedForCommunity(campaignId: string): Promise<CommunitySubmission[]> {
+    const submissions = await this.prisma.submission.findMany({
+      where: { campaignId, status: 'APPROVED' },
+      include: { revisions: REVISIONS_WITH_POSTS },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const creators = await this.profiles.summariesByUserIds(
+      submissions.map((submission) => submission.creatorUserId),
+    );
+    return submissions.map((submission) => {
+      const creator = creators.get(submission.creatorUserId) ?? null;
+      return {
+        id: submission.id,
+        creatorUserId: submission.creatorUserId,
+        creator: creator && toPublicCreator(creator),
+        posts: latestPosts(submission).map((post) => ({ platform: post.platform, url: post.url })),
+        approvedAt: submission.updatedAt,
+      };
+    });
   }
 
   async listForCampaign(campaignId: string, requesterId: string): Promise<SubmissionForReview[]> {
@@ -288,8 +324,8 @@ export class SubmissionService {
 }
 
 /**
- * The revision to store. `contentUrl` stays filled for clients that read one link: the
- * uploaded video, or the first post.
+ * The revision to store: the posts, and for UPLOAD the video that came with them.
+ * `contentUrl` stays filled for clients that read one link: the video, or the first post.
  */
 function toRevisionData(
   dto: SubmitContentDto,
@@ -300,7 +336,7 @@ function toRevisionData(
   note: string | null;
   posts: { create: PostInput[] };
 } {
-  const posts = dto.contentType === 'LINK' ? resolvePosts(dto, campaign) : [];
+  const posts = resolvePosts(dto, campaign);
   return {
     contentType: dto.contentType,
     contentUrl: dto.contentType === 'LINK' ? posts[0].url : (dto.contentUrl as string),
@@ -310,7 +346,7 @@ function toRevisionData(
 }
 
 /**
- * The posts of a LINK submission, each on one of the campaign's platforms. A link the
+ * The posts of a submission, each on one of the campaign's platforms. A link the
  * views sync recognises must be filed under its own platform; one it can't read (a
  * short link, say) is taken on the creator's word. An older client's single
  * `contentUrl` is filed under its recognised platform, or the campaign's main one.
@@ -360,9 +396,9 @@ export interface SubmissionLink {
   campaignId: string;
   creatorUserId: string;
   status?: SubmissionStatus;
-  /** Whether the latest revision is an uploaded video rather than published posts. */
+  /** Whether the latest revision came with an uploaded video. */
   isUpload: boolean;
-  /** The published posts in the latest revision; empty for an upload. */
+  /** The published posts in the latest revision (empty only for an old video-only one). */
   posts: PostInput[];
 }
 
