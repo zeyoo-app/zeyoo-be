@@ -249,3 +249,80 @@ describe('EarningsSettlementService.getCreatorEarnings', () => {
     await expect(service.getCreatorEarnings('creator-1')).resolves.toEqual([]);
   });
 });
+
+describe('EarningsSettlementService.quote', () => {
+  const campaign = (overrides: Partial<typeof CAMPAIGN> = {}) =>
+    ({ ...CAMPAIGN, ...overrides }) as never;
+
+  it('quotes rate × views without crediting anything', async () => {
+    const { service, ledger } = build();
+
+    const quote = await service.quote(campaign(), 'creator-1', 12_000);
+
+    expect(quote).toMatchObject({
+      views: 12_000,
+      entitledMinor: 6_000,
+      alreadyPaidMinor: 0,
+      payNowMinor: 6_000,
+      limitedBy: null,
+    });
+    expect(ledger.recordEarning).not.toHaveBeenCalled();
+  });
+
+  it('quotes only what is still owed, held to the per-creator limit', async () => {
+    const { service } = build({ accrued: { 'creator-1': 2_000 } });
+
+    const quote = await service.quote(
+      campaign({ maxRewardPerCreatorAmount: 5_000 }),
+      'creator-1',
+      40_000,
+    );
+
+    expect(quote).toMatchObject({ entitledMinor: 5_000, payNowMinor: 3_000, limitedBy: 'cap' });
+  });
+
+  it('quotes no more than the funded budget left', async () => {
+    const { service } = build({ fundedMinor: 1_000 });
+
+    const quote = await service.quote(campaign(), 'creator-1', 20_000);
+
+    expect(quote).toMatchObject({ payNowMinor: 1_000, limitedBy: 'budget' });
+  });
+
+  it('quotes nothing while earnings are paused', async () => {
+    const { service } = build({ pausedCreators: ['creator-1'] });
+
+    const quote = await service.quote(campaign(), 'creator-1', 20_000);
+
+    expect(quote).toMatchObject({ payNowMinor: 0, paused: true });
+  });
+});
+
+describe('EarningsSettlementService.payCreator', () => {
+  it('pays only the named creator, leaving the others for the brand to pay', async () => {
+    const { service, ledger } = build({
+      approvedCreators: ['creator-1', 'creator-2'],
+      views: { 'creator-1': 10_000, 'creator-2': 20_000 },
+    });
+
+    const paid = await service.payCreator({ ...CAMPAIGN } as never, 'creator-1');
+
+    expect(paid.creditedNowMinor).toBe(5_000);
+    expect(ledger.recordEarning).toHaveBeenCalledTimes(1);
+    expect(ledger.recordEarning).toHaveBeenCalledWith(
+      'organization-1',
+      'creator-1',
+      expect.objectContaining({ amountMinor: 5_000 }),
+      expect.any(String),
+    );
+  });
+
+  it('pays nothing to a creator whose submission is not approved', async () => {
+    const { service, ledger } = build({ approvedCreators: [], views: { 'creator-1': 10_000 } });
+
+    const paid = await service.payCreator({ ...CAMPAIGN } as never, 'creator-1');
+
+    expect(paid.creditedNowMinor).toBe(0);
+    expect(ledger.recordEarning).not.toHaveBeenCalled();
+  });
+});

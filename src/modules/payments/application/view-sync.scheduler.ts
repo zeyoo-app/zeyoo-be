@@ -6,9 +6,9 @@ import { ViewTrackingService } from './view-tracking.service';
 const MINUTES_TO_MS = 60_000;
 
 /**
- * Periodically re-reads views for every live campaign so earnings follow the posts
- * without anyone pressing sync. Passes are idempotent, so several instances running
- * the same timer cannot double-credit. Disabled when the interval is 0 and in tests.
+ * Periodically re-reads views for every live campaign so brands see current numbers
+ * without pressing sync. It only records views; nobody is paid until the brand
+ * approves or pays. Disabled when the interval is 0 and in tests.
  */
 @Injectable()
 export class ViewSyncScheduler implements OnModuleInit, OnModuleDestroy {

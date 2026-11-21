@@ -1,3 +1,5 @@
+import { ApprovalPayoutService } from './application/approval-payout.service';
+import { ApprovalPayoutController } from './controllers/approval-payout.controller';
 import { CommunitySubmissionsService } from './application/community-submissions.service';
 import { CommunitySubmissionsController } from './controllers/community-submissions.controller';
 import { Module } from '@nestjs/common';
@@ -45,6 +47,7 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
   ],
   controllers: [
     CommunitySubmissionsController,
+    ApprovalPayoutController,
     FundingController,
     EarningsController,
     ViewTrackingController,
@@ -56,6 +59,7 @@ import { StripePaymentGateway } from './infrastructure/stripe-payment-gateway';
   ],
   providers: [
     CommunitySubmissionsService,
+    ApprovalPayoutService,
     LedgerService,
     FundingService,
     EarningsSettlementService,

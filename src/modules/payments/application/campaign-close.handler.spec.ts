@@ -7,15 +7,11 @@ function build(unspent: number): {
   refundUnspent: jest.Mock;
 } {
   const calls: string[] = [];
-  const settleCampaignAsSystem = jest.fn(async () => {
-    calls.push('settle');
-  });
   const refundUnspent = jest.fn(async () => {
     calls.push('return');
   });
   const handler = new CampaignCloseHandler(
     { onClosed: jest.fn() } as never,
-    { settleCampaignAsSystem } as never,
     { refundableMinor: jest.fn().mockResolvedValue(unspent), refundUnspent } as never,
   );
   return { handler, calls, refundUnspent };
@@ -24,12 +20,12 @@ function build(unspent: number): {
 const campaign = (currencyCode: string): Campaign => ({ id: 'c1', currencyCode }) as Campaign;
 
 describe('CampaignCloseHandler', () => {
-  it('settles creators first, then returns the rest of a USD budget to the wallet', async () => {
+  it('returns the unpaid rest of a USD budget to the wallet, paying nobody on its own', async () => {
     const { handler, calls, refundUnspent } = build(15_000);
 
     await handler.returnUnspent(campaign('USD'), 'brand-user');
 
-    expect(calls).toEqual(['settle', 'return']);
+    expect(calls).toEqual(['return']);
     expect(refundUnspent).toHaveBeenCalledWith('c1', 'brand-user');
   });
 

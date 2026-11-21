@@ -10,7 +10,6 @@ import {
   UnifiedPostMetrics,
 } from '@modules/social/social.public';
 import { SubmissionLink, SubmissionService } from '@modules/submissions/submissions.public';
-import { EarningsSettlementService, SettlementSummary } from './earnings-settlement.service';
 
 export interface ManualViewsInput {
   /** Which post the count is for; may be left out when the submission has one post. */
@@ -53,14 +52,13 @@ export interface PostViews {
 
 export interface TrackingResult {
   results: SubmissionSyncResult[];
-  settlement: SettlementSummary;
 }
 
 /**
  * Gets a submission's views into the system — typed in by a brand member, or read
- * from the platform — then settles the campaign so creators are credited straight
- * away. Both paths write the same kind of snapshot, so everything downstream
- * (reports, earnings) is blind to where a number came from.
+ * from the platform. It only records them: creators are paid when the brand approves
+ * or pays (ApprovalPayoutService). Both paths write the same kind of snapshot, so
+ * everything downstream (reports, earnings) is blind to where a number came from.
  */
 @Injectable()
 export class ViewTrackingService {
@@ -70,7 +68,6 @@ export class ViewTrackingService {
     private readonly submissions: SubmissionService,
     private readonly metrics: MetricService,
     private readonly platformMetrics: PlatformMetricsService,
-    private readonly settlement: EarningsSettlementService,
   ) {}
 
   async recordManualViews(
@@ -80,8 +77,12 @@ export class ViewTrackingService {
   ): Promise<TrackingResult> {
     const submission = await this.submissions.withLatestLink(submissionId);
     await this.assertCanManage(submission.campaignId, requesterId);
-    if (submission.status !== 'APPROVED') {
-      throw new ConflictException('Views can only be recorded for an approved submission.');
+    // A brand can type in counts it can't read automatically while deciding, too. They
+    // count toward pay only when the brand approves the submission or pays for them.
+    if (submission.status !== 'APPROVED' && submission.status !== 'PENDING') {
+      throw new ConflictException(
+        'Views can only be recorded for a pending or approved submission.',
+      );
     }
     const campaign = await this.campaigns.requireCampaign(submission.campaignId);
     const platform = this.manualPlatform(submission, campaign.platform, input.platform);
@@ -97,7 +98,6 @@ export class ViewTrackingService {
       results: [
         { submissionId, platform, outcome: { status: 'RECORDED', platform, views: input.views } },
       ],
-      settlement: await this.settlement.settleCampaignAsSystem(campaign.id),
     };
   }
 
@@ -107,11 +107,7 @@ export class ViewTrackingService {
     if (submission.status !== 'APPROVED') {
       throw new ConflictException('Views can only be synced for an approved submission.');
     }
-    const results = await this.pullFromPlatform(submission);
-    return {
-      results,
-      settlement: await this.settlement.settleCampaignAsSystem(submission.campaignId),
-    };
+    return { results: await this.pullFromPlatform(submission) };
   }
 
   async syncCampaign(campaignId: string, requesterId: string): Promise<TrackingResult> {
@@ -133,7 +129,7 @@ export class ViewTrackingService {
     for (const submission of approved) {
       results.push(...(await this.pullFromPlatform(submission)));
     }
-    return { results, settlement: await this.settlement.settleCampaignAsSystem(campaignId) };
+    return { results };
   }
 
   /** The latest reading of each post in a submission, for the brand reviewing it. */

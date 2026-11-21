@@ -17,19 +17,15 @@ const SUBMISSION = {
   posts: [YOUTUBE_POST] as { platform: string; url: string }[],
 };
 
-const SETTLEMENT = { campaignId: 'campaign-1', creators: [], totalAccruedMinor: 0 };
-
 function build(submission: Partial<typeof SUBMISSION> = {}): {
   service: ViewTrackingService;
   recordSnapshot: jest.Mock;
   fetchForPost: jest.Mock;
-  settle: jest.Mock;
   latestByPlatformForCreator: jest.Mock;
 } {
   const recordSnapshot = jest.fn().mockResolvedValue(undefined);
   const latestByPlatformForCreator = jest.fn().mockResolvedValue(new Map());
   const fetchForPost = jest.fn();
-  const settle = jest.fn().mockResolvedValue(SETTLEMENT);
   const service = new ViewTrackingService(
     {
       requireCampaign: jest
@@ -43,14 +39,13 @@ function build(submission: Partial<typeof SUBMISSION> = {}): {
     } as never,
     { recordSnapshot, latestByPlatformForCreator } as never,
     { fetchForPost } as never,
-    { settleCampaignAsSystem: settle } as never,
   );
-  return { service, recordSnapshot, fetchForPost, settle, latestByPlatformForCreator };
+  return { service, recordSnapshot, fetchForPost, latestByPlatformForCreator };
 }
 
 describe('ViewTrackingService', () => {
-  it('records manually entered views as a manual snapshot and settles the campaign', async () => {
-    const { service, recordSnapshot, settle } = build();
+  it('records manually entered views as a manual snapshot, paying nobody', async () => {
+    const { service, recordSnapshot } = build();
 
     const result = await service.recordManualViews('submission-1', 'brand-user', { views: 4_200 });
 
@@ -62,12 +57,19 @@ describe('ViewTrackingService', () => {
         metrics: expect.objectContaining({ views: 4_200, likes: null }),
       }),
     );
-    expect(settle).toHaveBeenCalledWith('campaign-1');
     expect(result.results[0].outcome).toMatchObject({ status: 'RECORDED', views: 4_200 });
   });
 
-  it('refuses to record views for a submission that is not approved', async () => {
+  it('records typed-in views on a pending submission, before the brand decides', async () => {
     const { service, recordSnapshot } = build({ status: 'PENDING' });
+
+    await service.recordManualViews('submission-1', 'brand-user', { views: 10 });
+
+    expect(recordSnapshot).toHaveBeenCalled();
+  });
+
+  it('refuses to record views for a rejected submission', async () => {
+    const { service, recordSnapshot } = build({ status: 'REJECTED' });
 
     await expect(
       service.recordManualViews('submission-1', 'brand-user', { views: 10 }),
@@ -91,7 +93,7 @@ describe('ViewTrackingService', () => {
   });
 
   it('reports why a platform could not be read instead of failing the sync', async () => {
-    const { service, recordSnapshot, fetchForPost, settle } = build();
+    const { service, recordSnapshot, fetchForPost } = build();
     fetchForPost.mockRejectedValue(
       new MetricsUnavailableError('NEEDS_CREATOR_CONNECTION', 'Creator must connect TikTok.'),
     );
@@ -104,7 +106,6 @@ describe('ViewTrackingService', () => {
       message: 'Creator must connect TikTok.',
     });
     expect(recordSnapshot).not.toHaveBeenCalled();
-    expect(settle).toHaveBeenCalled();
   });
 
   it('asks for manual entry when a submission has no post link', async () => {
