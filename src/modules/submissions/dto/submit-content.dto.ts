@@ -8,30 +8,29 @@ const postSchema = z.object({
   url: z.string().url(),
 });
 
+// Every submission links to the creator's published posts, so their views can be
+// tracked. A video may come with them (UPLOAD): the brand gets the original file too,
+// but the posts are what is reviewed and paid for.
 export const submitContentSchema = z
   .object({
     contentType: z.enum(['LINK', 'UPLOAD']),
     // The uploaded video for UPLOAD. For LINK, older clients send their one post link
     // here instead of `posts`; the service treats it as a single post.
     contentUrl: z.string().url().optional(),
-    // LINK only: one published post per campaign platform the creator posted on.
-    posts: z.array(postSchema).min(1).max(5).optional(),
+    // One published post per campaign platform the creator posted on.
+    posts: z.array(postSchema).min(1).max(6).optional(),
     note: z.string().max(1000).optional(),
     // A creator joins a campaign by submitting to it, so a first submission carries the
     // terms acceptance an application used to. Not needed once they are taking part.
     acceptedTerms: z.boolean().optional(),
   })
-  .refine((value) => value.contentType === 'UPLOAD' || Boolean(value.posts ?? value.contentUrl), {
-    message: 'Add the link to at least one post.',
-    path: ['posts'],
-  })
+  .refine(
+    (value) => Boolean(value.posts ?? (value.contentType === 'LINK' && value.contentUrl)),
+    { message: 'Add the link to at least one post.', path: ['posts'] },
+  )
   .refine((value) => value.contentType === 'LINK' || Boolean(value.contentUrl), {
     message: 'Upload your video before submitting.',
     path: ['contentUrl'],
-  })
-  .refine((value) => value.contentType === 'LINK' || !value.posts, {
-    message: 'Post links are only sent with a LINK submission.',
-    path: ['posts'],
   })
   .refine(
     (value) =>
