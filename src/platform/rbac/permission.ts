@@ -13,7 +13,15 @@ export const Permission = {
   WithdrawalRequest: 'withdrawal:request',
   CreatorProfileManage: 'creator:profile:manage',
   MediaUpload: 'media:upload',
+  // Signs in to the back office and sees the overview; every staff role has it.
   AdminAccess: 'admin:access',
+  // One per back-office area, so a staff role opens only the areas it covers.
+  AdminPeople: 'admin:people',
+  AdminCampaigns: 'admin:campaigns',
+  AdminFinance: 'admin:finance',
+  AdminTrust: 'admin:trust',
+  AdminSettings: 'admin:settings',
+  AdminAudit: 'admin:audit',
   StaffManage: 'admin:staff:manage',
 } as const;
 

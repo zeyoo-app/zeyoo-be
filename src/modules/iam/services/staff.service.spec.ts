@@ -71,4 +71,34 @@ describe('StaffService', () => {
 
     expect(transaction).toHaveBeenCalledTimes(1);
   });
+
+  it("changes a role and ends the person's sessions so it applies at once", async () => {
+    const { service, transaction } = build({
+      target: { id: 't1', role: 'SUPPORT', status: 'ACTIVE' },
+    });
+
+    await service.changeRole('t1', 'FINANCE', 'me');
+
+    expect(transaction).toHaveBeenCalled();
+  });
+
+  it('refuses to change your own role', async () => {
+    const { service, transaction } = build({
+      target: { id: 'me', role: 'SUPER_ADMIN', status: 'ACTIVE' },
+    });
+
+    await expect(service.changeRole('me', 'SUPPORT', 'me')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('keeps at least one active super admin when changing a role', async () => {
+    const { service, transaction } = build({ activeSuperAdmins: 1 });
+
+    await expect(service.changeRole('t1', 'ADMINISTRATOR', 'me')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(transaction).not.toHaveBeenCalled();
+  });
 });

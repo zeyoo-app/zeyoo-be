@@ -10,7 +10,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { StaffRole } from '@prisma/client';
 import { CurrentUser, Principal, Public } from '@platform/auth';
-import { Permission, RequirePermission } from '@platform/rbac';
+import { Permission, permissionsForRole, RequirePermission } from '@platform/rbac';
 import { LogoutDto, RefreshDto, RequestStaffCodeDto, VerifyStaffCodeDto } from '../dto/auth.dto';
 import { AuthService } from '../services/auth.service';
 import { StaffService } from '../services/staff.service';
@@ -20,6 +20,8 @@ export interface StaffMe {
   id: string;
   email: string;
   role: StaffRole;
+  /** What this role opens, so the back office shows only those areas. */
+  permissions: Permission[];
 }
 
 /** Back-office sign-in. Staff accounts are added by a super admin, never signed up. */
@@ -69,6 +71,11 @@ export class StaffAuthController {
     if (!staff || staff.status !== 'ACTIVE') {
       throw new NotFoundException('Staff account not found.');
     }
-    return { id: staff.id, email: staff.email, role: staff.role };
+    return {
+      id: staff.id,
+      email: staff.email,
+      role: staff.role,
+      permissions: permissionsForRole(staff.role),
+    };
   }
 }

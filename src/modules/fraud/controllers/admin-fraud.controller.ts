@@ -19,7 +19,7 @@ const STATUSES: FraudCaseStatus[] = ['OPEN', 'RESOLVED', 'DISMISSED'];
 
 @ApiTags('admin')
 @ApiBearerAuth()
-@RequirePermission(Permission.AdminAccess)
+@RequirePermission(Permission.AdminAccess, Permission.AdminTrust)
 @Controller('admin/fraud-cases')
 export class AdminFraudController {
   constructor(private readonly fraud: FraudService) {}

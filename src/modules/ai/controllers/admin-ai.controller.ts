@@ -22,7 +22,7 @@ const PROVIDER_IDS = updateAiSettingsSchema.shape.provider;
 /** Back-office control of which provider and model the assistants use. */
 @ApiTags('admin')
 @ApiBearerAuth()
-@RequirePermission(Permission.AdminAccess)
+@RequirePermission(Permission.AdminAccess, Permission.AdminSettings)
 @Controller('admin/ai')
 export class AdminAiController {
   constructor(

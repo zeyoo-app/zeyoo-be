@@ -8,7 +8,7 @@ import { HoldWithdrawalDto } from '../dto/payments.dto';
 
 @ApiTags('admin-payouts')
 @ApiBearerAuth()
-@RequirePermission(Permission.AdminAccess)
+@RequirePermission(Permission.AdminAccess, Permission.AdminFinance)
 @Controller('admin/withdrawals')
 export class AdminPayoutsController {
   constructor(private readonly withdrawals: WithdrawalService) {}

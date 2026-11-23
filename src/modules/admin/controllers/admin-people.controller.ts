@@ -13,7 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { StaffRole, StaffStatus } from '@prisma/client';
 import { CurrentUser, Principal } from '@platform/auth';
 import { Permission, RequirePermission } from '@platform/rbac';
-import { AddStaffDto, RejectVerificationDto } from '../dto/admin.dto';
+import { AddStaffDto, ChangeStaffRoleDto, RejectVerificationDto } from '../dto/admin.dto';
 import { Page } from '../services/admin-read.service';
 import { StaffService } from '@modules/iam/iam.public';
 import { AdminPeopleService, UserDetail, VerificationRow } from '../services/admin-people.service';
@@ -38,11 +38,13 @@ export class AdminPeopleController {
     private readonly staffAccounts: StaffService,
   ) {}
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Get('users/:userId')
   userDetail(@Param('userId', ParseUUIDPipe) userId: string): Promise<UserDetail> {
     return this.people.userDetail(userId);
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Get('verifications')
   verifications(
     @Query('page') page?: string,
@@ -55,12 +57,14 @@ export class AdminPeopleController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Post('verifications/:userId/approve')
   async approveVerification(@Param('userId', ParseUUIDPipe) userId: string): Promise<void> {
     await this.people.approveVerification(userId);
   }
 
   @HttpCode(HttpStatus.OK)
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Post('verifications/:userId/reject')
   async rejectVerification(
     @Param('userId', ParseUUIDPipe) userId: string,
@@ -84,11 +88,22 @@ export class AdminPeopleController {
     }));
   }
 
-  // Super admin is the only role for now; more roles arrive with their own privileges.
   @RequirePermission(Permission.AdminAccess, Permission.StaffManage)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Post('staff')
   async addStaff(@CurrentUser() principal: Principal, @Body() dto: AddStaffDto): Promise<void> {
-    await this.staffAccounts.add(dto.email, 'SUPER_ADMIN', principal.userId);
+    await this.staffAccounts.add(dto.email, dto.role, principal.userId);
+  }
+
+  @RequirePermission(Permission.AdminAccess, Permission.StaffManage)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('staff/:staffId/role')
+  async changeStaffRole(
+    @CurrentUser() principal: Principal,
+    @Param('staffId', ParseUUIDPipe) staffId: string,
+    @Body() dto: ChangeStaffRoleDto,
+  ): Promise<void> {
+    await this.staffAccounts.changeRole(staffId, dto.role, principal.userId);
   }
 
   @RequirePermission(Permission.AdminAccess, Permission.StaffManage)

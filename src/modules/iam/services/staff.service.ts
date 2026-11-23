@@ -45,6 +45,28 @@ export class StaffService {
     return this.prisma.staffAccount.create({ data: { email: normalized, role, addedById } });
   }
 
+  /**
+   * Gives a staff member another role. Their open sessions end, so the new role
+   * applies at once rather than when their current token runs out.
+   */
+  async changeRole(id: string, role: StaffRole, requesterId: string): Promise<void> {
+    const staff = await this.require(id);
+    if (staff.id === requesterId) {
+      throw new ConflictException('You cannot change your own role.');
+    }
+    if (staff.role === role) return;
+    if (staff.role === 'SUPER_ADMIN' && staff.status === 'ACTIVE') {
+      await this.assertAnotherSuperAdmin();
+    }
+    await this.prisma.$transaction([
+      this.prisma.staffAccount.update({ where: { id }, data: { role } }),
+      this.prisma.staffRefreshToken.updateMany({
+        where: { staffId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+  }
+
   /** Removes back-office access and ends every session the account has open. */
   async deactivate(id: string, requesterId: string): Promise<void> {
     const staff = await this.require(id);
@@ -54,11 +76,8 @@ export class StaffService {
     if (staff.status !== 'ACTIVE') {
       throw new ConflictException('This staff account is not active.');
     }
-    const activeSuperAdmins = await this.prisma.staffAccount.count({
-      where: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
-    });
-    if (staff.role === 'SUPER_ADMIN' && activeSuperAdmins <= 1) {
-      throw new ConflictException('At least one active super admin must remain.');
+    if (staff.role === 'SUPER_ADMIN') {
+      await this.assertAnotherSuperAdmin();
     }
     await this.prisma.$transaction([
       this.prisma.staffAccount.update({ where: { id }, data: { status: 'DEACTIVATED' } }),
@@ -75,6 +94,16 @@ export class StaffService {
       throw new ConflictException('Only a deactivated staff account can be restored.');
     }
     await this.prisma.staffAccount.update({ where: { id }, data: { status: 'ACTIVE' } });
+  }
+
+  // Someone must always be able to manage staff.
+  private async assertAnotherSuperAdmin(): Promise<void> {
+    const activeSuperAdmins = await this.prisma.staffAccount.count({
+      where: { role: 'SUPER_ADMIN', status: 'ACTIVE' },
+    });
+    if (activeSuperAdmins <= 1) {
+      throw new ConflictException('At least one active super admin must remain.');
+    }
   }
 
   private async require(id: string): Promise<StaffAccount> {

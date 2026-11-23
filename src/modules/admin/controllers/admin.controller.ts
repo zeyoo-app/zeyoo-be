@@ -79,6 +79,7 @@ export class AdminController {
     return this.read.overview();
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Get('users')
   listUsers(
     @Query('search') search?: string,
@@ -96,6 +97,7 @@ export class AdminController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Post('users/:userId/suspend')
   async suspendUser(
     @CurrentUser() principal: Principal,
@@ -112,6 +114,7 @@ export class AdminController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Post('users/:userId/reactivate')
   async reactivateUser(@Param('userId', ParseUUIDPipe) userId: string): Promise<User> {
     const user = await this.requireUser(userId);
@@ -121,6 +124,7 @@ export class AdminController {
     return this.users.setStatus(userId, 'ACTIVE');
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminPeople)
   @Get('organizations')
   listOrganizations(
     @Query('page') page?: string,
@@ -129,6 +133,7 @@ export class AdminController {
     return this.read.organizations(pageOf(page, pageSize));
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminCampaigns)
   @Get('campaigns')
   listCampaigns(
     @Query('status') status?: string,
@@ -144,6 +149,7 @@ export class AdminController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @RequirePermission(Permission.AdminAccess, Permission.AdminCampaigns)
   @Post('campaigns/:campaignId/close')
   closeCampaign(
     @CurrentUser() principal: Principal,
@@ -153,6 +159,7 @@ export class AdminController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @RequirePermission(Permission.AdminAccess, Permission.AdminFinance)
   @Post('campaigns/:campaignId/refund')
   refundCampaign(
     @CurrentUser() principal: Principal,
@@ -161,6 +168,7 @@ export class AdminController {
     return this.refunds.refundUnspent(campaignId, principal.userId);
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminFinance)
   @Get('fundings')
   listFundings(
     @Query('page') page?: string,
@@ -169,6 +177,7 @@ export class AdminController {
     return this.read.fundings(pageOf(page, pageSize));
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminFinance)
   @Get('withdrawals')
   listWithdrawals(
     @Query('scope') scope?: string,
@@ -178,21 +187,25 @@ export class AdminController {
     return this.read.withdrawals(scope === 'history' ? 'history' : 'open', pageOf(page, pageSize));
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminFinance)
   @Get('billing')
   billing(): Promise<AdminBilling> {
     return this.read.billing();
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminCampaigns)
   @Get('categories')
   listCategories(): Promise<Category[]> {
     return this.categories.list();
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminCampaigns)
   @Post('campaign-categories')
   createCategory(@Body() dto: CreateCategoryDto): Promise<Category> {
     return this.categories.create(dto.name);
   }
 
+  @RequirePermission(Permission.AdminAccess, Permission.AdminAudit)
   @Get('audit-log')
   auditLog(
     @Query('page') page?: string,

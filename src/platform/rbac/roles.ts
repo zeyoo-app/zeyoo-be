@@ -20,7 +20,28 @@ const CREATOR_PERMISSIONS: Permission[] = [
   Permission.MediaUpload,
 ];
 
-const SUPER_ADMIN_PERMISSIONS: Permission[] = [Permission.AdminAccess, Permission.StaffManage];
+// Back-office roles. Each opens the areas its job needs; only a super admin manages staff.
+const ADMIN_PERMISSIONS: Permission[] = [
+  Permission.AdminAccess,
+  Permission.AdminPeople,
+  Permission.AdminCampaigns,
+  Permission.AdminFinance,
+  Permission.AdminTrust,
+  Permission.AdminSettings,
+  Permission.AdminAudit,
+];
+const SUPER_ADMIN_PERMISSIONS: Permission[] = [...ADMIN_PERMISSIONS, Permission.StaffManage];
+const SUPPORT_PERMISSIONS: Permission[] = [
+  Permission.AdminAccess,
+  Permission.AdminPeople,
+  Permission.AdminCampaigns,
+  Permission.AdminTrust,
+];
+const FINANCE_PERMISSIONS: Permission[] = [
+  Permission.AdminAccess,
+  Permission.AdminFinance,
+  Permission.AdminAudit,
+];
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [UserType.BRAND_USER]: BRAND_PERMISSIONS,
@@ -28,6 +49,9 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   // Retired: back-office access now comes from a staff account, never a user type.
   [UserType.ADMIN]: [],
   [StaffRole.SUPER_ADMIN]: SUPER_ADMIN_PERMISSIONS,
+  [StaffRole.ADMINISTRATOR]: ADMIN_PERMISSIONS,
+  [StaffRole.SUPPORT]: SUPPORT_PERMISSIONS,
+  [StaffRole.FINANCE]: FINANCE_PERMISSIONS,
 };
 
 export function permissionsForRole(role: Role): Permission[] {

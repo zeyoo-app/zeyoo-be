@@ -17,7 +17,7 @@ import { DisputeService, DisputeView } from '../services/dispute.service';
 
 @ApiTags('admin')
 @ApiBearerAuth()
-@RequirePermission(Permission.AdminAccess)
+@RequirePermission(Permission.AdminAccess, Permission.AdminTrust)
 @Controller('admin/disputes')
 export class AdminDisputesController {
   constructor(private readonly disputes: DisputeService) {}

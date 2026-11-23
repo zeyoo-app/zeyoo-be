@@ -181,9 +181,13 @@ model ApiKey {
 
 // Zeyoo staff who sign in to the back office. A separate identity from User:
 // staff never need a creator or brand account, and one person can hold both under
-// the same email without either affecting the other. More roles come later.
+// the same email without either affecting the other. A role decides which back-office
+// areas open (src/platform/rbac/roles.ts); only a super admin manages staff.
 enum StaffRole {
   SUPER_ADMIN
+  ADMINISTRATOR
+  SUPPORT
+  FINANCE
 }
 
 enum StaffStatus {
